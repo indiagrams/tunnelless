@@ -64,6 +64,13 @@ struct ContentView: View {
         }
         .padding(24)
         .frame(maxWidth: 520, alignment: .leading)
+        .task {
+            // Launch with `-autoconnect` to start the node without a tap.
+            // Used by UI tests and for capturing screenshots of the connected state.
+            if ProcessInfo.processInfo.arguments.contains("-autoconnect") {
+                await model.connect()
+            }
+        }
     }
 
     private var header: some View {
