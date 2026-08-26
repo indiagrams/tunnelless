@@ -102,6 +102,18 @@ reports success while acting on the wrong target.
 | Always pass `-R indiagrams/tunnelless` to `gh` | This clone has two remotes: `origin` (this fork) and `upstream` (apple-shipkit). `gh` resolves the base repo through `upstream`, and **`gh repo set-default` does not reliably override it** — `gh secret list` even fails outright with "multiple remotes detected". `gh variable set APP_NAME` once wrote `APP_NAME`, `BUNDLE_ID`, and `TSKIT_RELEASE_REPO` to *apple-shipkit*, where a pre-existing `DEPENDABOT_AUTOMERGE` made the verifying `gh variable list` look correct. This fork's CI then fell back to the template default and every app matrix cell failed with `app/TailnetDemo.xcodeproj does not exist`. Verify writes through the REST API (`gh api repos/<owner>/<repo>/actions/variables`), not `gh`'s own repo resolution. |
 | `.bootstrap.env` stores `ASC_API_KEY_P8_PATH`; fastlane reads `ASC_API_KEY_P8_BASE64` | The `Fastfile` header documents `ASC_API_KEY_P8_PATH`, but its `asc_api_key` helper does `ENV.fetch("ASC_API_KEY_P8_BASE64")`. Both are correct: `bin/lib/bootstrap.rb` derives the base64 form from the path when `make ship` exports the environment. The mismatch only bites when invoking a lane directly, which fails with the misleading `Authentication credentials are missing or invalid` — a message that reads like a bad key rather than an unset variable. Before a direct `fastlane <lane>`, export it: `export ASC_API_KEY_P8_BASE64=$(openssl base64 -A -in "$ASC_API_KEY_P8_PATH")`. |
 
+### Measuring and claiming
+
+Both wrong versions of the `LocalAPIClient` root cause (TAILSCALE.md §1) shipped
+because of measurement error, not coding error — and one reached two of
+Tailscale's repos before it was caught.
+
+| Rule | Why |
+|---|---|
+| Never publish a number you did not run | A "before (stock) → never returns" figure was put in a measurement table without ever being executed; it was inherited from this repo's own prior claim. Measured properly, stock returned in **8 ms**, and the theory built on it was wrong. A before/after table is a claim about two runs — take the baseline *first*, on the same device, in the same session, before changing anything. If a number is quoted rather than measured, say so and cite it. |
+| Measure in the state where the bug lives | Every probe ran *after* `up()` returned, where nothing is wrong, so the defect was invisible and the healthy readings made a wrong theory look confirmed. The bug existed only inside the login window. Before trusting a green measurement, ask which state it sampled and whether the failure could even occur there. |
+| Prove the negative with a control | What finally settled it was two arms in one run: a direct HTTP call using a pre-cached loopback config (no actor) answered in 32 ms *while* `LocalAPIClient` hung on the same node. One arm alone would have been another guess. When blaming a component, include an arm that exercises everything except the suspect. |
+
 ## Where code goes
 
 | What | Where |
