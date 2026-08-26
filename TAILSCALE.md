@@ -141,16 +141,32 @@ DERP, and peers. The `network.server`-only run above reused an
 already-authenticated state directory, so it never exercised a cold
 control-plane dial.
 
-**Why CI missed it.** The `app` matrix builds unsigned
+**Why CI missed it.** The `app` matrix in `pr.yml` builds unsigned
 (`CODE_SIGNING_ALLOWED=NO`), and without a signature the sandbox is not
 enforced — so an unsigned build connects happily while the signed one it
-ships never starts. Any change to `app/macOS/*.entitlements` should be checked
-against a *signed* build:
+ships never starts.
+
+**This is now guarded.** `.github/workflows/macos-sandbox-check.yml` signs the
+app ad-hoc (enough to make the kernel enforce entitlements — no Apple
+credentials needed, so it runs on forks), launches it, and fails unless tsnet
+reports `tailscale_start ... returned res=0`. It runs on any change to
+`app/macOS/**`, `app/Shared/Tailscale/**`, the project manifests, `tailscale/**`,
+or the pinned submodule.
+
+To reproduce it locally:
 
 ```bash
 xcodebuild build -project app/TailnetDemo.xcodeproj -scheme TailnetDemo-macOS \
   -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/dd-mac \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES
-timeout 45 /tmp/dd-mac/Build/Products/Debug/TailnetDemo-macOS.app/Contents/MacOS/TailnetDemo-macOS \
+
+/tmp/dd-mac/Build/Products/Debug/TailnetDemo-macOS.app/Contents/MacOS/TailnetDemo-macOS \
   -autoconnect 2>&1 | grep tailscale_start
+# want: "... tailscale_start sd=... returned res=0"
 ```
+
+**The guard depends on a forked patch.** The `[TailscaleKit]` NSLog tracing it
+greps for comes from commit `b50094a` in the `indiagrams/libtailscale` fork, not
+from upstream. If a version bump drops that patch, the check reports "no
+tailscale_start result found" and fails loudly rather than silently passing —
+restore the patch instead of deleting the check.

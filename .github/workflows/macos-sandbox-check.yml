@@ -1,0 +1,174 @@
+name: macos-sandbox-check
+
+# Asserts that a SIGNED, sandboxed macOS build can actually start tsnet.
+#
+# Why this exists as its own workflow:
+#
+#   pr.yml builds everything unsigned (CODE_SIGNING_ALLOWED=NO). Without a
+#   signature macOS does not enforce the App Sandbox, so an unsigned build
+#   happily opens sockets that the shipped, signed build cannot. That blind
+#   spot hid a real bug: app/macOS/*.entitlements granted only
+#   com.apple.security.app-sandbox, and every signed build failed at
+#   tailscale_start() with res=-1 — the macOS app could never connect — while
+#   all six pr.yml cells stayed green.
+#
+#   tsnet listens on loopback (that is where the SOCKS5 proxy lives), and a
+#   listening socket under App Sandbox requires
+#   com.apple.security.network.server.
+#
+# This job signs ad-hoc, which is enough: ad-hoc signatures enforce
+# entitlements and the sandbox. It does NOT need Apple credentials, so it runs
+# on forks and on PRs from forks.
+#
+# It is a separate file rather than a job inside pr.yml because pr.yml is
+# template-owned (see AGENTS.md); a new workflow file adds no upstream merge
+# conflict.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/macOS/**'
+      - 'app/Shared/Tailscale/**'
+      - 'app/project.yml'
+      - 'app/Project.swift'
+      - 'vendor/libtailscale'
+      - 'tailscale/**'
+      - '.github/workflows/macos-sandbox-check.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-sandbox-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signed-launch:
+    name: signed macOS launch
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+      APP_NAME: ${{ vars.APP_NAME || 'TailnetDemo' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: install generator
+        run: brew install xcodegen
+
+      # Same fetch as pr.yml's app job: derive the release tag from the pinned
+      # submodule's go.mod rather than hardcoding a version.
+      - name: fetch TailscaleKit.xcframework
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/embedded-tailscale-ios' }}
+        run: |
+          set -euo pipefail
+          TSNET_VERSION="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          if [ -z "$TSNET_VERSION" ]; then
+            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            exit 1
+          fi
+          gh release download "tailscalekit-${TSNET_VERSION}" \
+            --repo "$TSKIT_REPO" \
+            --pattern 'TailscaleKit.xcframework.zip' \
+            --dir "$RUNNER_TEMP"
+          unzip -q "$RUNNER_TEMP/TailscaleKit.xcframework.zip" -d vendor/
+
+      - name: regenerate Xcode project
+        working-directory: app
+        run: xcodegen generate
+
+      # CODE_SIGN_IDENTITY="-" is ad-hoc. The point is not a valid Apple
+      # identity, it is that a signature exists at all — that is what makes
+      # the kernel enforce the entitlements below.
+      - name: build signed (ad-hoc)
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "app/${APP_NAME}.xcodeproj" \
+            -scheme "${APP_NAME}-macOS" \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd-mac" \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=YES \
+            CODE_SIGNING_ALLOWED=YES \
+            2>&1 | tail -40
+
+      - name: assert the sandbox entitlements are actually embedded
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}-macOS.app"
+          ENTS="$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert xml1 -o - -)"
+          echo "$ENTS"
+          fail=0
+          for key in com.apple.security.app-sandbox com.apple.security.network.server com.apple.security.network.client; do
+            if echo "$ENTS" | grep -q "$key"; then
+              echo "OK: $key present"
+            else
+              echo "::error::$key missing from the signed bundle's entitlements"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      # The actual regression guard. A sandboxed build missing network.server
+      # returns res=-1 here and the node never comes up.
+      - name: launch and assert tailscale_start succeeds
+        run: |
+          set -uo pipefail
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}-macOS.app"
+          LOG="$RUNNER_TEMP/launch.log"
+
+          # -autoconnect makes the app start the node without UI interaction.
+          # The app is expected to keep running; we assert on what it logged,
+          # not on its exit code, so it is backgrounded and polled.
+          #
+          # Deliberately not using `timeout`: that is GNU coreutils and is not
+          # guaranteed on a macOS runner. Polling also returns as soon as the
+          # result line lands instead of always burning the full budget.
+          "$APP/Contents/MacOS/${APP_NAME}-macOS" -autoconnect > "$LOG" 2>&1 &
+          APP_PID=$!
+          for _ in $(seq 1 90); do
+            if grep -q 'tailscale_start .* returned res=' "$LOG" 2>/dev/null; then
+              break
+            fi
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              echo "app exited early"
+              break
+            fi
+            sleep 1
+          done
+          kill "$APP_PID" 2>/dev/null || true
+          wait "$APP_PID" 2>/dev/null || true
+
+          echo "----- log -----"
+          cat "$LOG"
+          echo "---------------"
+
+          if grep -q 'tailscale_start .* returned res=0' "$LOG"; then
+            echo "PASS: tsnet started under the App Sandbox"
+            exit 0
+          fi
+
+          if grep -q 'tailscale_start .* returned res=-1' "$LOG"; then
+            echo "::error::tailscale_start returned res=-1 — the signed, sandboxed build cannot start tsnet."
+            echo "::error::Most likely app/macOS/*.entitlements is missing com.apple.security.network.server."
+            echo "::error::See TAILSCALE.md 'macOS: the App Sandbox needs network.server'."
+            exit 1
+          fi
+
+          echo "::error::No tailscale_start result found in the log."
+          echo "::error::The [TailscaleKit] NSLog tracing comes from a patch carried in the"
+          echo "::error::indiagrams/libtailscale fork; if that patch was dropped during a bump,"
+          echo "::error::this guard goes blind. Restore it rather than deleting this check."
+          exit 1
