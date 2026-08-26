@@ -156,6 +156,39 @@ extension DemoModel {
         }
     }
 
+    /// Launch with `-peers` to exercise the peer dashboard's data path end to end:
+    /// TailnetStatusClient's typed decode plus the ordering in `peerRows()`.
+    ///
+    /// Worth its own probe because the risky part is invisible from the UI: the earlier
+    /// `-localapi` probe parsed with JSONSerialization, so `IpnState.Status`'s Codable
+    /// conformance against a real response had never actually been run. A single
+    /// mismatched field would throw and the list would render empty with an error.
+    func runPeerProbeIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-peers") else { return }
+        guard let lb = await manager.cachedLoopback else {
+            probeResult("peers: no loopback config")
+            return
+        }
+        let started = Date()
+        do {
+            let status = try await TailnetStatusClient(loopback: lb).status()
+            let rows = status.peerRows()
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let tailnet = status.CurrentTailnet?.Name ?? "?"
+            probeResult("peers: decoded \(rows.count) in \(ms)ms tailnet=\(tailnet) health=\(status.Health?.count ?? 0)")
+            let flags = rows.map(\.online)
+            probeResult("peers: \(flags.filter { $0 }.count) online; online-first=\(flags == flags.sorted { $0 && !$1 })")
+            for row in rows.prefix(4) {
+                let up = row.online ? "UP  " : "down"
+                let sub = row.subtitle ?? "-"
+                let ip = row.ipv4 ?? "-"
+                probeResult("peers:   \(up) \(row.displayName) ip=\(ip) sub=\(sub) route=\(row.route ?? "-")")
+            }
+        } catch {
+            probeResult("peers: FAILED in \(Int(Date().timeIntervalSince(started) * 1000))ms — \(String(describing: error))")
+        }
+    }
+
     /// Launch with `-duringup` to probe the LocalAPI *while `up()` is still in flight*.
     ///
     /// Discriminates two candidate causes of the documented "LocalAPIClient hangs on
