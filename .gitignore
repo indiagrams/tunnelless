@@ -83,3 +83,8 @@ vendor/libtailscale/swift/build/
 
 # SwiftPM build products (a root Package.swift vends the prebuilt xcframework).
 .build/
+
+# GSD planning workspace — local only. This repo is public; STATE.md and
+# PROJECT.md carry working notes, relationship context, and candid assessments
+# that are not for publication.
+.planning/
