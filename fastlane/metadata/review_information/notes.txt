@@ -1,1 +1,32 @@
-TODO: notes for App Review (e.g., demo account credentials, test instructions, anything reviewers need to know).
+IMPORTANT -- NO SEPARATE TAILSCALE APP REQUIRED
+
+Tunnelless has Tailscale built in. Do NOT install the Tailscale app from the App Store. The Tailscale sign-in screen that appears on first launch is an account authentication step only -- it connects this app's own embedded Tailscale node to that account's network. No separate app installation is needed or expected.
+
+---
+
+ABOUT THIS APP
+
+Tunnelless joins a Tailscale network from inside the app itself, without installing a VPN profile. There is no NEPacketTunnelProvider, no NetworkExtension entitlement, and no "Allow VPN configuration" prompt. Only this app's own connections use the network; the rest of the device is unaffected, and any VPN the user already runs keeps working.
+
+The app is analogous to an SSH or FTP client: it connects to a network the user already has. It is complete and functional -- it simply needs an account to sign in with, which a reviewer would not otherwise have. Demo credentials are supplied below.
+
+HOW TO REVIEW
+
+1. Launch the app. It begins connecting immediately.
+2. A Tailscale sign-in page opens in an in-app browser. Sign in with the demo credentials provided in the App Review Information section (Username / Password fields above).
+3. The sheet closes by itself once the node is connected. Tailscale's sign-in flow ends on its own website and never redirects back, so the app watches its own node instead of waiting for a redirect. This is expected -- no action needed.
+4. The main screen then shows the device's private network address (100.x.y.z) and the local SOCKS5 proxy address the app uses to reach other machines.
+5. Tap "Browse tailnet" to see the demo account's network: each device, whether it is currently reachable, its private address, and whether the connection is direct or relayed. Pull to refresh; search filters by name or address.
+6. "Sign out & reset" removes the node and deletes its stored credentials.
+
+WHAT YOU WILL SEE ON THE DEMO ACCOUNT
+
+The demo account has devices registered to it, so the peer list will not be empty. Devices shown as offline are expected -- they are simply not powered on. At least one device should appear online.
+
+WHY THERE IS NO ACCOUNT OF OUR OWN
+
+Tunnelless does not have its own user accounts, servers, or sign-up. It is a client for Tailscale, a third-party network the user brings. We store nothing: no analytics, no tracking, and no data collection of any kind, as declared in the app's privacy manifest and at the privacy policy URL on the listing. Sign-in happens directly with Tailscale and the app never sees those credentials.
+
+NETWORK ACCESS
+
+The app asks for local network permission on first connect. This is used to reach other devices on the same physical network directly rather than relaying through Tailscale's servers. Declining it does not break the app -- connections simply take the relayed path.

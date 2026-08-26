@@ -29,6 +29,14 @@ let baseSettings: SettingsDictionary = [
 
 // MARK: - iOS app
 
+// Hoisted because Plist.Value is ExpressibleByStringLiteral but a concatenated
+// expression is not a literal — inlining "a" + "b" fails to type-check as a
+// Plist.Value. The 140-char lint limit rules out one long literal, so the
+// constant is built here and converted explicitly with .string(...) below.
+private let localNetworkUsageDescription =
+    "Tunnelless connects directly to devices on your Tailscale network " +
+    "instead of relaying through Tailscale's servers."
+
 let iosInfoPlist: [String: Plist.Value] = [
     "CFBundleDisplayName": "Tunnelless",
     "CFBundleShortVersionString": "$(MARKETING_VERSION)",
@@ -49,6 +57,12 @@ let iosInfoPlist: [String: Plist.Value] = [
         "UIInterfaceOrientationLandscapeRight",
     ]),
     "ITSAppUsesNonExemptEncryption": false,
+    // iOS 14+ (and macOS 15+) gate local-network access behind this string. tsnet
+    // does LAN peer discovery, so Apple's prompt needs a reason to show. NOT a fix
+    // for relayed peers — a control run without this key still reports route=direct
+    // once traffic flows. See app/project.yml.
+    "NSLocalNetworkUsageDescription": .string(localNetworkUsageDescription),
+    "NSAppTransportSecurity": ["NSAllowsLocalNetworking": true],
 ]
 
 let iosTarget = Target.target(
@@ -96,6 +110,12 @@ let macInfoPlist: [String: Plist.Value] = [
     // The post-build script below installs the hand-rolled .icns instead.
     "CFBundleIconFile": "AppIcon",
     "ITSAppUsesNonExemptEncryption": false,
+    // iOS 14+ (and macOS 15+) gate local-network access behind this string. tsnet
+    // does LAN peer discovery, so Apple's prompt needs a reason to show. NOT a fix
+    // for relayed peers — a control run without this key still reports route=direct
+    // once traffic flows. See app/project.yml.
+    "NSLocalNetworkUsageDescription": .string(localNetworkUsageDescription),
+    "NSAppTransportSecurity": ["NSAllowsLocalNetworking": true],
 ]
 
 // Overwrites actool's broken 4-size .icns with the hand-rolled 10-size
