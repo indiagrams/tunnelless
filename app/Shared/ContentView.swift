@@ -80,6 +80,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Tailnet Demo")
                 .font(.title2.bold())
+                .accessibilityIdentifier(AccessibilityIdentifiers.title)
             Text("A userspace tsnet node inside this app — no VPN profile.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
