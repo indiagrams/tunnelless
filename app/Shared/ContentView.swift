@@ -162,6 +162,18 @@ final class DemoModel {
     private var logTask: Task<Void, Never>?
 
     func connect() async {
+        // Screenshot capture: present the connected state without a node. Starting tsnet
+        // would stall at a login the Simulator cannot complete.
+        if DemoData.isEnabled {
+            tailnetIP = DemoData.tailnetIP
+            socksProxy = DemoData.socksProxy
+            isRunning = true
+            isBusy = false
+            authURL = nil
+            statusText = "running"
+            return
+        }
+
         isBusy = true
         errorText = nil
         statusText = "starting tsnet…"
