@@ -20,6 +20,12 @@ struct ContentView: View {
     @State private var model = DemoModel()
 
     var body: some View {
+        NavigationStack {
+            content
+        }
+    }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 20) {
             header
 
@@ -32,6 +38,15 @@ struct ContentView: View {
 
             if let proxy = model.socksProxy {
                 labelled("SOCKS5 proxy", proxy)
+            }
+
+            if model.isRunning {
+                NavigationLink {
+                    PeerListView(manager: model.manager)
+                } label: {
+                    Label("Browse tailnet", systemImage: "list.bullet.rectangle")
+                }
+                .accessibilityIdentifier(AccessibilityIdentifiers.peersButton)
             }
 
             if model.authURL != nil {
@@ -168,6 +183,7 @@ final class DemoModel {
                 await runProbeIfRequested()
                 await runLocalAPIProbeIfRequested()
                 await runLocalAPIClientProbeIfRequested()
+                await runPeerProbeIfRequested()
             }
         } catch {
             errorText = String(describing: error)

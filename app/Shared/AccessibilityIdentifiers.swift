@@ -42,4 +42,14 @@ public enum AccessibilityIdentifiers {
     public static let connectButton = "Tunnelless.connectButton"
     /// Opens the interactive auth URL scraped from tsnet's log stream.
     public static let loginLink = "Tunnelless.loginLink"
+
+    // MARK: - Peer dashboard
+
+    /// Opens the tailnet peer list. Only present once the node is running.
+    public static let peersButton = "Tunnelless.peersButton"
+    /// "N online of M" header above the peer list — the cheapest assertion that the
+    /// LocalAPI was read and decoded, without depending on any particular peer existing.
+    public static let peerCount = "Tunnelless.peerCount"
+    /// A single peer row. Non-unique by design: tests query the collection.
+    public static let peerRow = "Tunnelless.peerRow"
 }

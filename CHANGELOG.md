@@ -15,6 +15,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Tailnet peer dashboard.** The app now enumerates the tailnet it belongs to:
+  peers with online state, tailnet IP, MagicDNS name, whether the path is direct
+  or via a DERP relay, exit-node availability, ACL tags, and expired keys — plus
+  tailnet health warnings and search. This is what a userspace node can show that
+  a connection indicator cannot, and it addresses the App Review 4.2 minimum
+  functionality risk of shipping connect/IP/sign-out alone.
+- `TailnetStatusClient`, reading `/localapi/v0/status` directly and decoding into
+  TailscaleKit's own `IpnState.Status`. Deliberately not `LocalAPIClient`: that
+  awaits an actor `up()` holds for the whole login, and consumers of the
+  published xcframework still have the unpatched wrapper.
+- `TailnetPeerTests` — 8 tests over a fixture trimmed from a real status
+  response, covering the decode and every presentation rule.
+- `-peers` launch argument, which exercises the decode and ordering on device.
+
 ### Fixed
 
 - **Corrected the `LocalAPIClient` root cause — twice-wrong, now measured.** The
