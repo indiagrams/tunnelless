@@ -160,26 +160,41 @@ of them publishes anything without a human merge.
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `tailscale-upstream-watch.yml` | Mondays 06:17 UTC | Compares the pinned `tailscale.com` version against the latest stable release, and checks whether the patches `build-tailscalekit.sh` carries have merged upstream. Maintains **one** self-updating issue; closes it when there is nothing to do. |
-| `tailscale-bump.yml` | manual | Prepares a bump: edits `go.mod` in the libtailscale fork, verifies the bindings compile, rebuilds and validates the xcframework, builds the app on both generators, then opens a PR. Never merges. |
-| `release-xcframework.yml` | push to `main` touching `vendor/libtailscale` | Builds, validates, and publishes the release for the pinned version. Idempotent — skips if the tag exists. |
+| `tailscale-bump.yml` | manual | Prepares a bump: sets `tailscale/TAILSCALE_VERSION`, rebuilds and validates the xcframework, builds the app on both generators, then opens a PR. Never merges. Needs no credentials. |
+| `release-xcframework.yml` | push to `main` touching `tailscale/**` | Builds, validates, and publishes the release for the pinned version. Idempotent — skips if the tag exists. |
 | `macos-sandbox-check.yml` | PRs touching macOS/Tailscale paths | Signs ad-hoc, launches, and asserts `tailscale_start ... res=0`. The only job that exercises an enforced App Sandbox. |
 
-Dependabot additionally watches `gitsubmodule`, so the submodule pin cannot fall
-behind the fork unnoticed. It does **not** see new `tailscale.com` releases —
-those land in the fork's `go.mod`, one repo upstream, which is what
-`tailscale-upstream-watch.yml` is for.
+Dependabot additionally watches `gitsubmodule`, so `vendor/libtailscale` cannot
+drift far behind upstream unnoticed.
 
-**`tailscale-bump.yml` needs a credential.** Pushing to the libtailscale fork is
-a cross-repo write that `GITHUB_TOKEN` cannot do. Store a fine-grained PAT with
-`contents:write` on that repo as `LIBTAILSCALE_PAT`. Without it the workflow
-stops immediately and says so rather than half-finishing; `dry_run: true` builds
-and validates without needing it.
+## The Tailscale version and local patches
 
-**Why bumping is not one line.** The version lives in a different repository, and
-that fork carries local patches — including the `[TailscaleKit]` NSLog tracing
-(`b50094a`) that `macos-sandbox-check.yml` greps for. The bump workflow asserts
-that patch survived, because losing it would silently blind the sandbox guard
-rather than fail.
+Two files in this repo control what actually gets built:
+
+| File | Role |
+|---|---|
+| `tailscale/TAILSCALE_VERSION` | The single source of truth for the `tailscale.com` version. `build-tailscalekit.sh` reads it and runs `go get tailscale.com@<version>` against the submodule. |
+| `tailscale/patches/*.patch` | Local changes applied to `vendor/libtailscale` at build time. Currently one: nine lines of `[TailscaleKit]` NSLog tracing that `macos-sandbox-check.yml` greps for. |
+
+`vendor/libtailscale` tracks **upstream** `tailscale/libtailscale`. It used to
+track a fork (`indiagrams/libtailscale`) that existed purely to hold a `go get`
+and those nine lines — a whole second repository, plus a cross-repo PAT, for a
+one-line version bump. Reproducing both at build time removed the fork, the
+credential, and an entire repo to keep in sync.
+
+Consequences worth knowing:
+
+- **`vendor/libtailscale` is expected to be dirty after a build.** The script
+  edits its `go.mod` and applies patches in place. That is build output; do not
+  commit it.
+- **Bumping is a one-line edit** to `tailscale/TAILSCALE_VERSION`.
+- **A patch that stops applying is a hard error**, not a warning. Rebase it
+  rather than dropping it: losing the tracing patch would silently blind the
+  sandbox guard.
+- **Do not parse `vendor/libtailscale/go.mod` for the version.** It reads
+  `v1.94.1` (upstream's stale pin) until the build moves it, and after
+  `go mod tidy` the line sits inside a `require (...)` block where the obvious
+  `awk '/^require tailscale.com /'` returns nothing at all.
 
 ## Fork conventions
 

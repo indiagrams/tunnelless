@@ -1,3 +1,4 @@
 [submodule "vendor/libtailscale"]
 	path = vendor/libtailscale
-	url = https://github.com/indiagrams/libtailscale.git
+	url = https://github.com/tailscale/libtailscale.git
+	ignore = dirty

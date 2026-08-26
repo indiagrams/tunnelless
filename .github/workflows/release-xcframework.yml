@@ -54,9 +54,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          VERSION="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
           if [ -z "$VERSION" ]; then
-            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
           TAG="tailscalekit-${VERSION}"

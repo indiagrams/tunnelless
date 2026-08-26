@@ -53,7 +53,9 @@ the actual contribution here, so building it is part of using this repo.
 | `tailscale/build-tailscalekit.sh`          | Builds all three slices, injects privacy manifests, re-signs. |
 | `tailscale/validate-xcframework.sh`        | Asserts the things Apple rejects for. Run before uploading. |
 | `tailscale/PrivacyInfo.xcprivacy`          | The manifest injected into both iOS slices.               |
-| `vendor/libtailscale`                      | Submodule, pinned to a known-good commit.                 |
+| `tailscale/TAILSCALE_VERSION`              | The `tailscale.com` version to build. Single source of truth. |
+| `tailscale/patches/`                       | Local changes applied to the submodule at build time.     |
+| `vendor/libtailscale`                      | Submodule tracking **upstream** `tailscale/libtailscale`. Expected to be dirty after a build — the script moves its `go.mod` and applies patches in place. |
 
 Everything else is [apple-shipkit](https://github.com/indiagrams/apple-shipkit)
 scaffolding. Per its `AGENTS.md`, `bin/`, `ci/`, `.github/workflows/`, `Makefile`
@@ -165,8 +167,10 @@ xcodebuild build -project app/TailnetDemo.xcodeproj -scheme TailnetDemo-macOS \
 # want: "... tailscale_start sd=... returned res=0"
 ```
 
-**The guard depends on a forked patch.** The `[TailscaleKit]` NSLog tracing it
-greps for comes from commit `b50094a` in the `indiagrams/libtailscale` fork, not
-from upstream. If a version bump drops that patch, the check reports "no
-tailscale_start result found" and fails loudly rather than silently passing —
-restore the patch instead of deleting the check.
+**The guard depends on a local patch.** The `[TailscaleKit]` NSLog tracing it
+greps for is not upstream — it comes from
+`tailscale/patches/0001-tailscalekit-nslog-tracing.patch`, applied to the
+submodule at build time. If that patch stops applying, `build-tailscalekit.sh`
+hard-fails; if it were somehow dropped, this check reports "no tailscale_start
+result found" and fails loudly rather than silently passing. Rebase the patch
+instead of deleting the check.

@@ -32,22 +32,80 @@ fi
 # Clean previous build artifacts
 rm -rf "$SWIFT_DIR/build/"
 
+# --------------------------------------------------------------------------
+# vendor/libtailscale tracks UPSTREAM tailscale/libtailscale.
+#
+# Upstream is slow-moving — it pinned tailscale.com v1.94.1 for six months
+# while Tailscale shipped through v1.102.3 — so this repo used to carry a fork
+# (indiagrams/libtailscale) purely to bump that pin and add nine lines of
+# NSLog tracing. A whole second repository, plus a cross-repo PAT, for nine
+# lines and a `go get`.
+#
+# Both are now reproduced here at build time instead:
+#   1. the version comes from tailscale/TAILSCALE_VERSION (this repo)
+#   2. local changes live in tailscale/patches/*.patch (this repo)
+#
+# Everything that made the fork necessary is visible and reviewable in one
+# place, and there is no second repo to keep in sync.
+# --------------------------------------------------------------------------
+TSNET_VERSION="$(tr -d '[:space:]' < "$SCRIPT_DIR/TAILSCALE_VERSION")"
+if [ -z "$TSNET_VERSION" ]; then
+  echo "ERROR: tailscale/TAILSCALE_VERSION is empty"
+  exit 1
+fi
+case "$TSNET_VERSION" in
+  v[0-9]*.[0-9]*.[0-9]*) ;;
+  *) echo "ERROR: TAILSCALE_VERSION must look like v1.102.3 (got '$TSNET_VERSION')"; exit 1 ;;
+esac
+echo "--- tailscale.com ${TSNET_VERSION} (from tailscale/TAILSCALE_VERSION) ---"
+
+# Apply local patches to the submodule working tree.
+#
+# `git apply --check` first so a patch that no longer applies is a hard error
+# rather than a half-patched tree. This is the same discipline as the
+# module-cache patches below: never build silently from a source that is not
+# what we think it is.
+if [ -d "$SCRIPT_DIR/patches" ]; then
+  for patch in "$SCRIPT_DIR"/patches/*.patch; do
+    [ -e "$patch" ] || continue
+    name="$(basename "$patch")"
+    if git -C "$LIBTAILSCALE_DIR" apply --check "$patch" 2>/dev/null; then
+      git -C "$LIBTAILSCALE_DIR" apply "$patch"
+      echo "--- Applied patch: $name ---"
+    elif git -C "$LIBTAILSCALE_DIR" apply --reverse --check "$patch" 2>/dev/null; then
+      echo "--- Patch already applied, skipping: $name ---"
+    else
+      echo "ERROR: patch does not apply to vendor/libtailscale: $name"
+      echo "Upstream libtailscale has changed underneath it. Rebase the patch;"
+      echo "do NOT drop it — macos-sandbox-check.yml greps for the tracing it adds."
+      exit 1
+    fi
+  done
+fi
+
+# Move the submodule's go.mod onto the version we actually want to build.
+# Upstream's pin is only a starting point; TAILSCALE_VERSION above is the
+# source of truth. This edits the submodule working tree, which is why
+# vendor/libtailscale is expected to be dirty during a build.
+echo "--- go get tailscale.com@${TSNET_VERSION} ---"
+( cd "$LIBTAILSCALE_DIR" \
+    && go get "tailscale.com@${TSNET_VERSION}" \
+    && go mod tidy ) || {
+  echo "ERROR: could not move libtailscale onto tailscale.com@${TSNET_VERSION}"
+  echo "The bindings may not compile against this version."
+  exit 1
+}
+
 cd "$SWIFT_DIR"
 
-# Both patches target the same file — define the path once here.
+# Both module-cache patches target the same file — define the path once here.
 #
-# The tailscale.com version is READ FROM go.mod rather than hardcoded. It used to be
+# The path is derived from TSNET_VERSION rather than hardcoded. It used to be
 # pinned to v1.96.4, which silently rotted the moment the dependency was bumped: the
 # path stopped resolving, both patches below hit their "not found" WARNING branch, and
 # the build produced an xcframework missing the Bus nil guard — a crash fix — with no
 # error. Deriving it keeps the patches attached to whatever version is actually built.
-TSNET_VERSION="$(awk '/^require tailscale.com /{print $3}' "$LIBTAILSCALE_DIR/go.mod")"
-if [ -z "$TSNET_VERSION" ]; then
-  echo "ERROR: could not read tailscale.com version from $LIBTAILSCALE_DIR/go.mod"
-  exit 1
-fi
 TSNET_GO="$(go env GOMODCACHE)/tailscale.com@${TSNET_VERSION}/tsnet/tsnet.go"
-echo "--- tailscale.com ${TSNET_VERSION} (from go.mod) ---"
 if [ ! -f "$TSNET_GO" ]; then
   echo "ERROR: $TSNET_GO not found — run 'go mod download' in $LIBTAILSCALE_DIR first"
   exit 1
