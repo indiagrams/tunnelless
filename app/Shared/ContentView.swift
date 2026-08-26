@@ -18,6 +18,7 @@ import TailscaleKit
 
 struct ContentView: View {
     @State private var model = DemoModel()
+    @State private var showPeers = false
 
     var body: some View {
         NavigationStack {
@@ -41,8 +42,11 @@ struct ContentView: View {
             }
 
             if model.isRunning {
-                NavigationLink {
-                    PeerListView(manager: model.manager)
+                // Button + navigationDestination rather than NavigationLink(isActive:),
+                // which is deprecated under NavigationStack. This shape also lets the
+                // Browse Tailnet intent drive navigation by flipping the same flag.
+                Button {
+                    showPeers = true
                 } label: {
                     Label("Browse tailnet", systemImage: "list.bullet.rectangle")
                 }
@@ -83,12 +87,24 @@ struct ContentView: View {
         }
         .padding(24)
         .frame(maxWidth: 520, alignment: .leading)
+        .navigationDestination(isPresented: $showPeers) {
+            PeerListView(manager: model.manager)
+        }
         .task {
             // Launch with `-autoconnect` to start the node without a tap.
             // Used by UI tests and for capturing screenshots of the connected state.
             if ProcessInfo.processInfo.arguments.contains("-autoconnect") {
                 await model.connect()
             }
+        }
+        // App Intents that need the node must run here: tsnet lives in this process,
+        // and a first connection may need an interactive browser login.
+        .onReceive(NotificationCenter.default.publisher(for: .tunnellessConnectRequested)) { _ in
+            guard !model.isRunning, !model.isBusy else { return }
+            Task { await model.connect() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .tunnellessBrowseRequested)) { _ in
+            showPeers = model.isRunning
         }
     }
 
@@ -180,6 +196,10 @@ final class DemoModel {
                 isRunning = true
                 statusText = "running"
                 authURL = nil
+                TailnetSnapshotStore.update(
+                    isConnected: true, tailnetIP: ip, socksProxy: socksProxy
+                )
+                await seedPeerCounts()
                 await runProbeIfRequested()
                 await runLocalAPIProbeIfRequested()
                 await runLocalAPIClientProbeIfRequested()
@@ -251,10 +271,29 @@ final class DemoModel {
         }
     }
 
+    /// Reads status once at connect so the snapshot carries peer counts immediately.
+    ///
+    /// WHY at connect and not only in the peer list: App Intents read the snapshot
+    /// without launching the app, and PeerListModel only refreshes while its view is
+    /// on screen. Without this, "Count Online Devices" answers 0 until the user has
+    /// visited the dashboard at least once — measured on device, which is the only
+    /// place the gap shows.
+    private func seedPeerCounts() async {
+        guard let loopback = await manager.cachedLoopback else { return }
+        guard let status = try? await TailnetStatusClient(loopback: loopback).status() else { return }
+        let rows = status.peerRows()
+        TailnetSnapshotStore.update(
+            tailnetName: status.CurrentTailnet?.Name,
+            peerCount: rows.count,
+            onlinePeerCount: rows.filter(\.online).count
+        )
+    }
+
     func signOut() async {
         isBusy = true
         logTask?.cancel()
         await manager.signOutAndReset()
+        TailnetSnapshotStore.clear()
         tailnetIP = nil
         socksProxy = nil
         authURL = nil
