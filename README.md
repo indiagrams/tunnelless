@@ -231,9 +231,18 @@ forever on physical iOS devices.** `startLoginInteractive()`,
 error, no timeout. It works fine in the Simulator, which is what makes it
 expensive.
 
-The workaround is `LogPipeLogger`: attach a `LogSink`, read tsnet's own log
-stream, and match on the state transitions. Full explanation, plus four more
-traps, in [TAILSCALE.md](TAILSCALE.md).
+The bug is in the Swift wrapper, not in tsnet. `proxyVia(_:)` routes every
+LocalAPI request through the SOCKS5 proxy — at the loopback address that proxy
+is itself listening on — so the `CONNECT` never resolves. Measured on a
+physical iPhone with the node Running, the underlying paths are healthy:
+SOCKS5 to a tailnet peer returns 200 in 76 ms, and
+`GET /localapi/v0/status` straight at the loopback address returns 200 in
+69 ms with 65 peers. Reaching it directly requires the `Sec-Tailscale: localapi`
+header plus basic auth with `local_api_cred`, both documented in `tailscale.h`.
+
+For the login flow the workaround is `LogPipeLogger`: attach a `LogSink`, read
+tsnet's own log stream, and match on the state transitions. Full explanation,
+the measurements, and four more traps in [TAILSCALE.md](TAILSCALE.md).
 
 ---
 

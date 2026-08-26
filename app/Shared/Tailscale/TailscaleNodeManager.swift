@@ -20,10 +20,18 @@ import TailscaleKit
 ///
 /// WHY: `LocalAPIClient` is non-functional on physical iOS devices — every HTTP call
 /// through it blocks forever (`startLoginInteractive`, `backendStatus`, `watchIPNBus`).
-/// The SOCKS5 proxy accepts the TCP connection but never returns an HTTP response, and
-/// there is no error and no timeout. Reading tsnet's own log stream is the only reliable
-/// way to observe login state on device. tsnet re-logs the auth URL every few seconds,
-/// so a late reader still catches it.
+/// There is no error and no timeout.
+///
+/// The fault is in TailscaleKit's wrapper, not tsnet: `proxyVia(_:)` points a
+/// `ProxyConfiguration(socksv5Proxy:)` at the loopback address, so every LocalAPI call
+/// asks the SOCKS5 proxy to dial the address that proxy is listening on, and the
+/// `CONNECT` never resolves. Measured on device with the node Running, both underlying
+/// paths are healthy — SOCKS5 to a peer returns 200 in 76ms, and a direct
+/// `GET /localapi/v0/status` returns 200 in 69ms with 65 peers. See TAILSCALE.md §1.
+///
+/// This log-stream reader stays regardless: it predates the finding, needs no
+/// credentials, and is the one signal available before the node is up. Status and peer
+/// data can be read directly from the LocalAPI instead of scraped from here.
 struct LogPipeLogger: LogSink {
     let pipe: Pipe
     var logFileHandle: Int32? {
@@ -195,6 +203,14 @@ actor TailscaleNodeManager {
     /// and silently never fires.
     nonisolated func logLines(_ pipe: Pipe) -> AsyncLineSequence<FileHandle.AsyncBytes> {
         pipe.fileHandleForReading.bytes.lines
+    }
+
+    /// The live node, for callers that need to construct a `LocalAPIClient`.
+    ///
+    /// Safe only once `up()` has returned: `up()` is a blocking C call that holds this
+    /// actor for the whole login flow, so any access before then queues behind it.
+    func currentNode() -> TailscaleNode? {
+        node
     }
 
     func currentLogPipe() -> Pipe? {

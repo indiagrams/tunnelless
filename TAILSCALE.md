@@ -64,13 +64,47 @@ lives in `tailscale/`, not `ci/`, so the fork can still merge upstream.**
 
 ## The five things that will bite you
 
-**1. `LocalAPIClient` hangs forever on physical iOS devices.** Every HTTP call
-through it — `startLoginInteractive()`, `backendStatus()`, `watchIPNBus()` —
-blocks and never returns. Works in the simulator. The SOCKS5 proxy accepts the
-TCP connection but never delivers an HTTP response; no error, no timeout.
+**1. `LocalAPIClient` hangs forever on physical iOS devices — but the LocalAPI
+itself is fine.** Every call through the client — `startLoginInteractive()`,
+`backendStatus()`, `watchIPNBus()` — blocks and never returns. No error, no
+timeout. The fault is in TailscaleKit's Swift wrapper, **not** in tsnet.
 
-The workaround is `LogPipeLogger`: attach a `LogSink`, read tsnet's own log
-stream, and match on
+*Corrected 2026-08-26.* This entry previously blamed the loopback listener. Two
+measurements on a physical iPhone 12, node Running, say otherwise:
+
+| Path | Result |
+|---|---|
+| SOCKS5 `CONNECT` to a tailnet peer, then HTTP/1.1 | **200 OK in 76 ms**, correct body |
+| `GET http://<loopback>/localapi/v0/status` directly | **200 OK in 69 ms**, 79,919 bytes, 65 peers |
+
+So the loopback listener serves both the SOCKS5 proxy and the LocalAPI
+correctly on device. Reproduce either with the launch arguments
+`-probe <host:port>` and `-localapi` (see `SOCKS5Client.swift` and the probe
+hooks in `ContentView.swift`).
+
+**Root cause.** `URLSession+Tailscale.swift`'s `proxyVia(_:)` sets
+
+```swift
+self.proxyConfigurations = [ProxyConfiguration(socksv5Proxy: endpoint)]
+```
+
+where `endpoint` is the loopback address itself, and `LocalAPIClient` calls it
+for every request. So each LocalAPI call asks the SOCKS5 proxy to dial the
+address that proxy is listening on. The handshake succeeds, the `CONNECT` never
+resolves, and you get exactly the observed symptom. It is also unnecessary:
+`tailscale.h` states the same HTTP server "serves out the LocalAPI on
+`/localapi`", so it is directly reachable — no proxy hop required.
+
+Reaching it directly needs both credentials documented in `tailscale.h`: the
+header `Sec-Tailscale: localapi` **and** HTTP basic auth with `local_api_cred`
+as the password.
+
+Until the upstream fix lands, the login-flow workaround below still applies,
+because it predates this finding and is independently reliable. Peer and status
+data, however, can be read directly today.
+
+The login workaround is `LogPipeLogger`: attach a `LogSink`, read tsnet's own
+log stream, and match on
 
 ```
 control: AuthURL is https://…        → first run, open this URL

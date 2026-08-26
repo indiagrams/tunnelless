@@ -31,6 +31,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Corrected the `LocalAPIClient` finding in `TAILSCALE.md` and `README.md`.**
+  Both previously blamed tsnet's loopback listener for the device hang. Measured
+  on a physical iPhone with the node Running, that listener is healthy: a SOCKS5
+  `CONNECT` to a tailnet peer returns 200 in 76 ms, and
+  `GET /localapi/v0/status` straight at the loopback address returns 200 in
+  69 ms with 65 peers. The fault is in TailscaleKit's `proxyVia(_:)`, which
+  routes every LocalAPI request through the SOCKS5 proxy at the address that
+  proxy is itself listening on, so the `CONNECT` never resolves. Peer and status
+  data are therefore reachable on device today, by addressing the LocalAPI
+  directly with the `Sec-Tailscale: localapi` header and basic auth.
+
+### Added
+
+- `SOCKS5Client` — a minimal SOCKS5 client over `NWConnection`. Needed because
+  `URLSession.connectionProxyDictionary` ignores the SOCKS keys on iOS: a
+  URLSession "through the proxy" silently exits over the normal interface and
+  appears to work while never touching the tailnet.
+- `-probe <host:port>` and `-localapi` launch arguments that reproduce both
+  measurements above on a device.
+
+### Changed
+
 - Renamed the app from `TailnetDemo` to **Tunnelless**, and the bundle
   identifier from `com.indiagram.tailnetdemo` to `com.indiagram.tunnelless`, in
   preparation for an App Store release under Indiagram LLC. The old name put
