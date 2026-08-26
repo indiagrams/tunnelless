@@ -12,7 +12,7 @@
 import SwiftUI
 
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 struct ContentView: View {
@@ -175,7 +175,9 @@ final class DemoModel {
             // That's an expected end-of-stream here, not a failure to surface.
             do {
                 for try await line in manager.logLines(pipe) {
-                    if Task.isCancelled { return }
+                    if Task.isCancelled {
+                        return
+                    }
                     if let url = manager.authURL(from: line) {
                         await MainActor.run { self.authURL = url }
                     }
@@ -197,9 +199,11 @@ final class DemoModel {
     func presentLogin() async {
         guard let url = authURL, !isPresentingLogin else { return }
         isPresentingLogin = true
-        let ok = await WebAuthLogin.present(url: url, dismissWhen: await manager.currentUpTask())
+        let ok = await WebAuthLogin.present(url: url, dismissWhen: manager.currentUpTask())
         isPresentingLogin = false
-        if !ok { statusText = "login cancelled" }
+        if !ok {
+            statusText = "login cancelled"
+        }
     }
 
     /// Waits briefly for tsnet to log an auth URL, then presents it.
@@ -207,9 +211,13 @@ final class DemoModel {
     /// Returns immediately if the node is already authorised — a node with persisted state
     /// goes straight to Running and never logs an AuthURL, so waiting forever would hang.
     private func presentLoginWhenURLAppears() async {
-        for _ in 0..<40 {                       // ~20s
-            if authURL != nil { await presentLogin(); return }
-            if isRunning { return }
+        for _ in 0 ..< 40 { // ~20s
+            if authURL != nil {
+                await presentLogin(); return
+            }
+            if isRunning {
+                return
+            }
             try? await Task.sleep(for: .milliseconds(500))
         }
     }

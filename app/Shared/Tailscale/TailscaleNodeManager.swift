@@ -26,8 +26,11 @@ import TailscaleKit
 /// so a late reader still catches it.
 struct LogPipeLogger: LogSink {
     let pipe: Pipe
-    var logFileHandle: Int32? { pipe.fileHandleForWriting.fileDescriptor }
-    func log(_ message: String) {}
+    var logFileHandle: Int32? {
+        pipe.fileHandleForWriting.fileDescriptor
+    }
+
+    func log(_: String) {}
 }
 
 // MARK: - Errors
@@ -49,10 +52,10 @@ enum TailscaleNodeState: Equatable {
 
     static func == (a: TailscaleNodeState, b: TailscaleNodeState) -> Bool {
         switch (a, b) {
-        case (.idle, .idle), (.starting, .starting): return true
-        case let (.connected(x), .connected(y)): return x == y
-        case let (.failed(x), .failed(y)): return x == y
-        default: return false
+        case (.idle, .idle), (.starting, .starting): true
+        case let (.connected(x), .connected(y)): x == y
+        case let (.failed(x), .failed(y)): x == y
+        default: false
         }
     }
 }
@@ -60,7 +63,6 @@ enum TailscaleNodeState: Equatable {
 // MARK: - Manager
 
 actor TailscaleNodeManager {
-
     /// Hostname this node registers under on the tailnet.
     private let hostName: String
 
@@ -98,7 +100,9 @@ actor TailscaleNodeManager {
     /// Returns immediately; the node continues coming up in the background. Observe
     /// `logLines()` for the auth URL and `state` for completion.
     func startForBrowserLogin() async throws {
-        if case .connected = state { return }
+        if case .connected = state {
+            return
+        }
 
         // WHY: `TailscaleNode(config:logger:)` calls TsnetStart() internally, which takes the
         // tsnet state-directory lock. A previous attempt's background up() task still holds a
@@ -119,9 +123,9 @@ actor TailscaleNodeManager {
             let config = Configuration(
                 hostName: hostName,
                 path: stateDir,
-                authKey: "",                 // empty ⇒ interactive browser login
+                authKey: "", // empty ⇒ interactive browser login
                 controlURL: kDefaultControlURL,
-                ephemeral: false             // persist identity across launches
+                ephemeral: false // persist identity across launches
             )
 
             let pipe = Pipe()
@@ -176,7 +180,9 @@ actor TailscaleNodeManager {
     /// Handed to `WebAuthLogin.present(url:dismissWhen:)` so the login sheet can dismiss
     /// itself the moment the node reaches Running — Tailscale never redirects back to the
     /// app, so completion has to be observed from the node, not from the browser.
-    func currentUpTask() -> Task<Void, Error>? { upTask }
+    func currentUpTask() -> Task<Void, Error>? {
+        upTask
+    }
 
     /// tsnet's log stream, line by line.
     ///
@@ -191,7 +197,9 @@ actor TailscaleNodeManager {
         pipe.fileHandleForReading.bytes.lines
     }
 
-    func currentLogPipe() -> Pipe? { logPipe }
+    func currentLogPipe() -> Pipe? {
+        logPipe
+    }
 
     /// Extracts the interactive auth URL from a tsnet log line, if present.
     nonisolated func authURL(from line: String) -> URL? {
