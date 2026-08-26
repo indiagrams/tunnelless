@@ -13,16 +13,15 @@
 // completes (node reached Running) we cancel the session, which dismisses the sheet
 // and returns the user to the app automatically.
 
-import Foundation
 import AuthenticationServices
+import Foundation
 
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 @MainActor
 enum WebAuthLogin {
-
     /// Opens `url` in an in-app auth sheet.
     ///
     /// - Parameter dismissWhen: when this task completes (node reached Running), the
@@ -31,17 +30,16 @@ enum WebAuthLogin {
     ///   false if the user cancelled.
     @discardableResult
     static func present(url: URL, dismissWhen upTask: Task<Void, Error>?) async -> Bool {
-
         // WHY outer scope: `session.presentationContextProvider` is a WEAK property.
         // Created inline inside withCheckedContinuation there is no strong holder, ARC
         // releases it immediately, the weak ref goes nil, and start() fails with Code=2.
         #if os(iOS)
-        let presenter = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first
-            .map { ScenePresenter(scene: $0) }
+            let presenter = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+                .map { ScenePresenter(scene: $0) }
         #elseif os(macOS)
-        let presenter = WindowPresenter()
+            let presenter = WindowPresenter()
         #endif
 
         // Set before we call cancel() ourselves, so the completion handler can tell
@@ -62,11 +60,11 @@ enum WebAuthLogin {
             let session = ASWebAuthenticationSession(url: url, callbackURLScheme: nil) { _, error in
                 watcher?.cancel()
                 if autoDismissed {
-                    resumeOnce(true)          // we closed it — the node is up
+                    resumeOnce(true) // we closed it — the node is up
                     return
                 }
                 if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin {
-                    resumeOnce(false)         // user backed out
+                    resumeOnce(false) // user backed out
                 } else {
                     resumeOnce(true)
                 }
@@ -77,10 +75,10 @@ enum WebAuthLogin {
 
             guard let upTask else { return }
             watcher = Task { @MainActor in
-                try? await upTask.value        // resolves when the node reaches Running
+                try? await upTask.value // resolves when the node reaches Running
                 guard !Task.isCancelled else { return }
                 autoDismissed = true
-                session.cancel()               // dismisses the sheet → back in the app
+                session.cancel() // dismisses the sheet → back in the app
 
                 // Safety net: if the system already tore the sheet down (Safari-style back
                 // navigation, or iOS intercepting the redirect), the completion handler may
@@ -95,21 +93,24 @@ enum WebAuthLogin {
     // MARK: - Presentation anchors
 
     #if os(iOS)
-    private final class ScenePresenter: NSObject, ASWebAuthenticationPresentationContextProviding {
-        let scene: UIWindowScene
-        init(scene: UIWindowScene) { self.scene = scene }
-        func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-            scene.windows.first ?? ASPresentationAnchor()
+        private final class ScenePresenter: NSObject, ASWebAuthenticationPresentationContextProviding {
+            let scene: UIWindowScene
+            init(scene: UIWindowScene) {
+                self.scene = scene
+            }
+
+            func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
+                scene.windows.first ?? ASPresentationAnchor()
+            }
         }
-    }
     #elseif os(macOS)
-    /// On macOS the anchor is an NSWindow, not a UIWindowScene.
-    private final class WindowPresenter: NSObject, ASWebAuthenticationPresentationContextProviding {
-        func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-            NSApplication.shared.windows.first(where: \.isKeyWindow)
-                ?? NSApplication.shared.windows.first
-                ?? NSWindow()
+        /// On macOS the anchor is an NSWindow, not a UIWindowScene.
+        private final class WindowPresenter: NSObject, ASWebAuthenticationPresentationContextProviding {
+            func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
+                NSApplication.shared.windows.first(where: \.isKeyWindow)
+                    ?? NSApplication.shared.windows.first
+                    ?? NSWindow()
+            }
         }
-    }
     #endif
 }
