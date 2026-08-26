@@ -4,7 +4,7 @@
 # for the macOS app (Universal Purchase) so deliver picks the right
 # AppStoreVersion via the platform: arg.
 
-app_identifier "com.indiagram.tailnetdemo"
+app_identifier "com.indiagram.tunnelless"
 
 # Apple ID + Team ID come from environment (populated by make ship from .bootstrap.env, or set manually).
 apple_id ENV["FASTLANE_APPLE_ID"] if ENV["FASTLANE_APPLE_ID"]

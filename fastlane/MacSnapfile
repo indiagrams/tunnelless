@@ -6,8 +6,8 @@
 # This file is here for completeness if you ever choose to drive macOS via
 # fastlane snapshot in the future.
 
-scheme("TailnetDemo-macOS")
-project("app/TailnetDemo.xcodeproj")
+scheme("Tunnelless-macOS")
+project("app/Tunnelless.xcodeproj")
 configuration("Debug")
 output_directory("./fastlane/screenshots")
 

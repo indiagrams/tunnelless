@@ -78,7 +78,7 @@ struct ContentView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Tailnet Demo")
+            Text("Tunnelless")
                 .font(.title2.bold())
                 .accessibilityIdentifier(AccessibilityIdentifiers.title)
             Text("A userspace tsnet node inside this app — no VPN profile.")
@@ -115,7 +115,7 @@ struct ContentView: View {
 @MainActor
 @Observable
 final class DemoModel {
-    private let manager = TailscaleNodeManager(hostName: "tailnet-demo")
+    private let manager = TailscaleNodeManager(hostName: "tunnelless")
 
     var statusText = "idle"
     var tailnetIP: String?

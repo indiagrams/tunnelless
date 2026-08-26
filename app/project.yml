@@ -1,8 +1,8 @@
-# XcodeGen configuration for TailnetDemo.
+# XcodeGen configuration for Tunnelless.
 # Generate the .xcodeproj with: xcodegen generate
 # (https://github.com/yonaskolb/XcodeGen)
 
-name: TailnetDemo
+name: Tunnelless
 
 options:
   bundleIdPrefix: com.example
@@ -29,7 +29,7 @@ settings:
 
 # ─── iOS app ──────────────────────────────────────────────────────────
 targets:
-  TailnetDemo-iOS:
+  Tunnelless-iOS:
     type: application
     platform: iOS
     sources:
@@ -38,7 +38,7 @@ targets:
     info:
       path: iOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: Tailnet Demo
+        CFBundleDisplayName: Tunnelless
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -56,10 +56,10 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
         TARGETED_DEVICE_FAMILY: "1,2"           # iPhone + iPad
         SUPPORTS_MACCATALYST: NO
-        CODE_SIGN_ENTITLEMENTS: iOS/TailnetDemo.entitlements
+        CODE_SIGN_ENTITLEMENTS: iOS/Tunnelless.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
         INFOPLIST_KEY_NSHumanReadableCopyright: "TODO Copyright © 2026 <Your Org>. All rights reserved."
     dependencies:
@@ -70,7 +70,7 @@ targets:
         codeSign: true
 
 # ─── macOS app ────────────────────────────────────────────────────────
-  TailnetDemo-macOS:
+  Tunnelless-macOS:
     type: application
     platform: macOS
     sources:
@@ -84,7 +84,7 @@ targets:
     info:
       path: macOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: Tailnet Demo
+        CFBundleDisplayName: Tunnelless
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
@@ -98,8 +98,8 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo
-        CODE_SIGN_ENTITLEMENTS: macOS/TailnetDemo.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
+        CODE_SIGN_ENTITLEMENTS: macOS/Tunnelless.entitlements
         # Suppress actool's auto-injection of CFBundleIconName=AppIcon. Empty
         # value = actool emits Assets.car as before but does not set the key,
         # so macOS reads CFBundleIconFile → our hand-rolled 10-size .icns.
@@ -125,7 +125,7 @@ targets:
           echo "Overwrote $SCRIPT_OUTPUT_FILE_0 with hand-rolled 10-size .icns"
 
 # ─── UITest target (drives App Store screenshot capture) ────────────────────
-  TailnetDemoUITests:
+  TunnellessUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
@@ -139,8 +139,8 @@ targets:
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.uitests
-        TEST_TARGET_NAME: TailnetDemo-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.uitests
+        TEST_TARGET_NAME: Tunnelless-iOS
         GENERATE_INFOPLIST_FILE: YES
         # SnapshotHelper.swift is fastlane-shipped and predates Swift 6's
         # strict-by-default concurrency model. Pin this target to Swift 5
@@ -148,92 +148,92 @@ targets:
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: TailnetDemo-iOS
+      - target: Tunnelless-iOS
 
 
 # ─── Unit-test target (sanity tests; forks should add real tests here) ─────
-  TailnetDemoTests:
+  TunnellessTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.tests
-        TEST_TARGET_NAME: TailnetDemo-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.tests
+        TEST_TARGET_NAME: Tunnelless-iOS
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: TailnetDemo-iOS
+      - target: Tunnelless-iOS
 # ─── macOS UITest target (drives App Store screenshot capture) ─────────────
-  TailnetDemoMacOSUITests:
+  TunnellessMacOSUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
       - path: MacOSUITests
-      # See TailnetDemoUITests above — same rationale for the shared
+      # See TunnellessUITests above — same rationale for the shared
       # selector enum. The macOS UI test doesn't query it today, but
       # making the symbol available so future macOS test screens can.
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.macuitests
-        TEST_TARGET_NAME: TailnetDemo-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.macuitests
+        TEST_TARGET_NAME: Tunnelless-macOS
         GENERATE_INFOPLIST_FILE: YES
         # AppStoreScreenshotTests overrides XCTestCase.setUpWithError /
         # tearDownWithError in a @MainActor class — Swift 6 errors on
         # main-actor-isolated mutation in nonisolated overrides. Pin this
-        # target to Swift 5 mode (parallel to TailnetDemoUITests).
+        # target to Swift 5 mode (parallel to TunnellessUITests).
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: TailnetDemo-macOS
+      - target: Tunnelless-macOS
 
 # ─── macOS unit-test target ─────────────────────────────────────────────
-  TailnetDemoMacOSTests:
+  TunnellessMacOSTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: MacOSTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.mactests
-        TEST_TARGET_NAME: TailnetDemo-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.mactests
+        TEST_TARGET_NAME: Tunnelless-macOS
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: TailnetDemo-macOS
+      - target: Tunnelless-macOS
 
 # ─── Schemes ──────────────────────────────────────────────────────────
 schemes:
-  TailnetDemo-iOS:
+  Tunnelless-iOS:
     build:
       targets:
-        TailnetDemo-iOS: all
-        TailnetDemoUITests: [test]
-        TailnetDemoTests: [test]
+        Tunnelless-iOS: all
+        TunnellessUITests: [test]
+        TunnellessTests: [test]
     run:
       config: Debug
-      executable: TailnetDemo-iOS
+      executable: Tunnelless-iOS
     test:
       config: Debug
       targets:
-        - TailnetDemoUITests
-        - TailnetDemoTests
+        - TunnellessUITests
+        - TunnellessTests
     archive:
       config: Release
 
-  TailnetDemo-macOS:
+  Tunnelless-macOS:
     build:
       targets:
-        TailnetDemo-macOS: all
-        TailnetDemoMacOSUITests: [test]
-        TailnetDemoMacOSTests: [test]
+        Tunnelless-macOS: all
+        TunnellessMacOSUITests: [test]
+        TunnellessMacOSTests: [test]
     run:
       config: Debug
-      executable: TailnetDemo-macOS
+      executable: Tunnelless-macOS
     test:
       config: Debug
       targets:
-        - TailnetDemoMacOSUITests
-        - TailnetDemoMacOSTests
+        - TunnellessMacOSUITests
+        - TunnellessMacOSTests
     archive:
       config: Release

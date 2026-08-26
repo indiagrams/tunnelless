@@ -50,7 +50,7 @@ This policy covers the template scaffolding itself:
 - Release scripts: `bin/`, `ci/`, `fastlane/` — including
   `ci/local-check.sh`, `ci/local-release-check.sh`, `ci/lib/*.sh`, the
   fastlane `Fastfile`, and helper tools.
-- The stub `TailnetDemo` (iOS + macOS), insofar as it exercises the
+- The stub `Tunnelless` (iOS + macOS), insofar as it exercises the
   build/release pipeline. Bugs in the stub that demonstrate a flaw in the
   template's scaffolding count; bugs in features a forker has added on top
   of the stub do not.
