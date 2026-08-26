@@ -195,10 +195,10 @@ mutate_restore_project_yml() {
   # On a renamed fork, the most recent project.yml in git history is the
   # un-renamed upstream template — because bin/rename.sh + bin/switch-to-
   # tuist.sh ran as one commit that DELETED project.yml (filtered out by
-  # --diff-filter=AM). The restored content carries TailnetDemo identity +
-  # TEAM_ID_PLACEHOLDER + com.indiagram.tailnetdemo, which then breaks every
+  # --diff-filter=AM). The restored content carries Tunnelless identity +
+  # TEAM_ID_PLACEHOLDER + com.indiagram.tunnelless, which then breaks every
   # xcodebuild invocation (No signing certificate "...TEAM_ID_PLACEHOLDER",
-  # CODE_SIGN_ENTITLEMENTS references non-existent TailnetDemo.entitlements,
+  # CODE_SIGN_ENTITLEMENTS references non-existent Tunnelless.entitlements,
   # etc.). Re-apply the fork's identity from .bootstrap.env, mirroring
   # what bin/rename.sh would have done.
   if [ -f .bootstrap.env ]; then
@@ -247,7 +247,7 @@ mutate_makefile() {
     fail "Makefile missing — unexpected repo state"
   fi
   sed -i '' 's|cd app && tuist generate --no-open|cd app \&\& xcodegen generate|g' Makefile
-  sed -i '' 's|Regenerate TailnetDemo.xcodeproj from app/Project.swift|Regenerate TailnetDemo.xcodeproj from app/project.yml|g' Makefile
+  sed -i '' 's|Regenerate Tunnelless.xcodeproj from app/Project.swift|Regenerate Tunnelless.xcodeproj from app/project.yml|g' Makefile
   ok "Makefile: tuist generate --no-open → xcodegen generate"
 }
 

@@ -1,1 +1,1 @@
-https://example.com/support
+https://github.com/indiagrams/tunnelless/issues

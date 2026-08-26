@@ -18,9 +18,9 @@
 #
 # Why this exists:
 #   After `bin/rename.sh` substitutes the app's identity strings, the shipped
-#   README screenshots still show the original "TailnetDemo" stub — which misleads
+#   README screenshots still show the original "Tunnelless" stub — which misleads
 #   anyone viewing the forker's repo. This script regenerates docs/screenshots/
-#   from whatever the current app is (pre-rename TailnetDemo, or post-rename
+#   from whatever the current app is (pre-rename Tunnelless, or post-rename
 #   YourApp). Also useful when ContentView changes upstream.
 #
 # Capture chain (zero keystrokes; no Accessibility permission needed):
@@ -137,7 +137,7 @@ SCHEME_MACOS=$(echo "$SCHEMES" | grep -E -- '-macOS$' | head -1)
 ok "iOS scheme:   $SCHEME_IOS"
 ok "macOS scheme: $SCHEME_MACOS"
 
-# APP_NAME prefix (e.g. "TailnetDemo" from "TailnetDemo-iOS")
+# APP_NAME prefix (e.g. "Tunnelless" from "Tunnelless-iOS")
 APP_NAME="${SCHEME_IOS%-iOS}"
 ok "app name prefix: $APP_NAME"
 
@@ -212,8 +212,8 @@ open "$APP_MACOS"
 sleep 3   # window-render + AppKit launch settle
 
 # Quartz query — bypasses Accessibility permission
-# kCGWindowOwnerName is the truncated process name (e.g. "TailnetDemo", NOT
-# "TailnetDemo-macOS") because PRODUCT_NAME drops the platform suffix. Match by
+# kCGWindowOwnerName is the truncated process name (e.g. "Tunnelless", NOT
+# "Tunnelless-macOS") because PRODUCT_NAME drops the platform suffix. Match by
 # APP_NAME prefix to handle this consistently.
 WID=$(python3 - <<EOF
 from Quartz import CGWindowListCopyWindowInfo, kCGWindowListOptionOnScreenOnly, kCGNullWindowID

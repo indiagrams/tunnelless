@@ -22,24 +22,24 @@ import Foundation
 /// truth property — refactor here and both ends see it.
 ///
 /// **Naming convention.** Dotted, lowercase, scoped by feature
-/// (`TailnetDemo.title`, `Settings.signIn`, `Trends.chart`). The leading scope
+/// (`Tunnelless.title`, `Settings.signIn`, `Trends.chart`). The leading scope
 /// makes them grep-friendly and avoids collisions as forks add features.
 public enum AccessibilityIdentifiers {
-    /// The "TailnetDemo" title text — stable selector for UI tests across locales.
+    /// The "Tunnelless" title text — stable selector for UI tests across locales.
     /// SwiftUI Text elements surface in XCUITest queries as `app.staticTexts[id]`.
     /// SwiftUI containers (VStack, HStack, ZStack) without an explicit
     /// accessibility role don't surface independently, so attach identifiers
     /// to elements that XCUITest can actually query.
-    public static let title = "TailnetDemo.title"
+    public static let title = "Tunnelless.title"
 
     // MARK: - Tailnet demo
 
     /// Current tsnet node state ("idle", "starting tsnet…", "running", "failed").
-    public static let statusText = "TailnetDemo.statusText"
+    public static let statusText = "Tunnelless.statusText"
     /// The node's tailnet IPv4 address, shown once the node reaches Running.
-    public static let tailnetIP = "TailnetDemo.tailnetIP"
+    public static let tailnetIP = "Tunnelless.tailnetIP"
     /// Starts the node and the browser-login flow.
-    public static let connectButton = "TailnetDemo.connectButton"
+    public static let connectButton = "Tunnelless.connectButton"
     /// Opens the interactive auth URL scraped from tsnet's log stream.
-    public static let loginLink = "TailnetDemo.loginLink"
+    public static let loginLink = "Tunnelless.loginLink"
 }

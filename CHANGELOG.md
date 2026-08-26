@@ -31,6 +31,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed the app from `TailnetDemo` to **Tunnelless**, and the bundle
+  identifier from `com.indiagram.tailnetdemo` to `com.indiagram.tunnelless`, in
+  preparation for an App Store release under Indiagram LLC. The old name put
+  Tailscale's coined term "tailnet" in the product name; the new one names what
+  the app actually demonstrates — reaching a tailnet with no tunnel interface,
+  no `NEPacketTunnelProvider`, and no VPN profile. Tailscale is now referenced
+  only as a compatibility statement in store copy, never in the app's name.
+  `.github/workflows/` was deliberately left untouched: it already resolves the
+  name through `vars.APP_NAME`, so the GitHub repo variable carries the change
+  and the template-owned workflows stay conflict-free on upstream sync.
 - `.gitignore` now covers `vendor/README.txt` and
   `vendor/LICENSE-tailscale-BSD-3-Clause.txt`, which ship inside
   `TailscaleKit.xcframework.zip` and land in `vendor/` on every unzip.

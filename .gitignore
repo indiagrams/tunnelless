@@ -15,8 +15,8 @@ app/macOS/Generated-Info.plist
 
 # XcodeGen-generated project (regenerated from project.yml)
 # Tuist-generated project + workspace + cache (regenerated from app/Project.swift)
-app/TailnetDemo.xcodeproj
-app/TailnetDemo.xcworkspace
+app/Tunnelless.xcodeproj
+app/Tunnelless.xcworkspace
 app/Derived/
 .tuist/
 

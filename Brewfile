@@ -2,8 +2,8 @@
 # Or run `make bootstrap` (also runs lefthook + xcodegen + bundle install).
 
 # Build / project generation
-brew "xcodegen"        # app/project.yml → TailnetDemo.xcodeproj
-cask "tuist"          # app/Project.swift → TailnetDemo.xcodeproj (Tuist alternative; see #38)
+brew "xcodegen"        # app/project.yml → Tunnelless.xcodeproj
+cask "tuist"          # app/Project.swift → Tunnelless.xcodeproj (Tuist alternative; see #38)
 brew "swiftlint"       # Swift lint
 brew "swiftformat"     # Swift auto-format (companion to swiftlint)
 brew "xcbeautify"      # nicer xcodebuild logs

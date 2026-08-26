@@ -1,1 +1,1 @@
-TODO,replace,with,comma,separated,App,Store,keywords,100,chars,total,max
+tailscale,tailnet,wireguard,mesh,socks5,proxy,private network,remote access,userspace,tsnet

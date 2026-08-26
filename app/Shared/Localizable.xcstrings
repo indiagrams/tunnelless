@@ -1,13 +1,13 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "TailnetDemo" : {
+    "Tunnelless" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "TailnetDemo"
+            "value" : "Tunnelless"
           }
         }
       }

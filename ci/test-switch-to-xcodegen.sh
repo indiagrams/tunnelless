@@ -150,9 +150,9 @@ ok "second run was silent no-op (exit 0; status unchanged; stdout empty)"
 step "Integration: xcodegen generate on switched tree"
 ( cd "$WORK_DIR/app" && xcodegen generate >/dev/null 2>&1 ) || \
   fail "xcodegen generate failed on switched tree"
-test -d "$WORK_DIR/app/TailnetDemo.xcodeproj" || \
-  fail "xcodegen generate did not produce app/TailnetDemo.xcodeproj"
-ok "xcodegen generate produces app/TailnetDemo.xcodeproj"
+test -d "$WORK_DIR/app/Tunnelless.xcodeproj" || \
+  fail "xcodegen generate did not produce app/Tunnelless.xcodeproj"
+ok "xcodegen generate produces app/Tunnelless.xcodeproj"
 
 # ── Integration: make check green on the switched tree ────────────────────
 step "Integration: make check (iOS device build) on switched tree"

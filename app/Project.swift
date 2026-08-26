@@ -1,4 +1,4 @@
-// app/Project.swift — Tuist 4 manifest for the TailnetDemo template stub.
+// app/Project.swift — Tuist 4 manifest for the Tunnelless template stub.
 //
 // 1:1 equivalent of app/project.yml. Both ship on `main`; bin/rename.sh's
 // `--generator=tuist|xcodegen` flag (see #38) selects which one a fresh
@@ -7,7 +7,7 @@
 //
 // When editing this file, also update app/project.yml (and vice versa).
 // The CI matrix is the source of truth — both must produce a
-// build-green TailnetDemo.xcodeproj.
+// build-green Tunnelless.xcodeproj.
 
 import ProjectDescription
 
@@ -30,7 +30,7 @@ let baseSettings: SettingsDictionary = [
 // MARK: - iOS app
 
 let iosInfoPlist: [String: Plist.Value] = [
-    "CFBundleDisplayName": "Tailnet Demo",
+    "CFBundleDisplayName": "Tunnelless",
     "CFBundleShortVersionString": "$(MARKETING_VERSION)",
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "UILaunchScreen": .dictionary([:]),
@@ -52,10 +52,10 @@ let iosInfoPlist: [String: Plist.Value] = [
 ]
 
 let iosTarget = Target.target(
-    name: "TailnetDemo-iOS",
+    name: "Tunnelless-iOS",
     destinations: [.iPhone, .iPad],
     product: .app,
-    bundleId: "com.indiagram.tailnetdemo",
+    bundleId: "com.indiagram.tunnelless",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .extendingDefault(with: iosInfoPlist),
     sources: ["Shared/**", "iOS/**"],
@@ -64,7 +64,7 @@ let iosTarget = Target.target(
         "Shared/PrivacyInfo.xcprivacy",
         "Shared/Localizable.xcstrings",
     ],
-    entitlements: .file(path: "iOS/TailnetDemo.entitlements"),
+    entitlements: .file(path: "iOS/Tunnelless.entitlements"),
     dependencies: [
         // Built by tailscale/build-tailscalekit.sh — NOT committed to git.
         // Mirror of the `dependencies:` block in app/project.yml; Tuist
@@ -73,7 +73,7 @@ let iosTarget = Target.target(
         .xcframework(path: "../vendor/TailscaleKit.xcframework"),
     ],
     settings: .settings(base: [
-        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tailnetdemo",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
@@ -84,7 +84,7 @@ let iosTarget = Target.target(
 // MARK: - macOS app
 
 let macInfoPlist: [String: Plist.Value] = [
-    "CFBundleDisplayName": "Tailnet Demo",
+    "CFBundleDisplayName": "Tunnelless",
     "CFBundleShortVersionString": "$(MARKETING_VERSION)",
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
@@ -115,10 +115,10 @@ let macIconScript: TargetScript = .post(
 )
 
 let macTarget = Target.target(
-    name: "TailnetDemo-macOS",
+    name: "Tunnelless-macOS",
     destinations: [.mac],
     product: .app,
-    bundleId: "com.indiagram.tailnetdemo",
+    bundleId: "com.indiagram.tunnelless",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .extendingDefault(with: macInfoPlist),
     sources: [
@@ -133,14 +133,14 @@ let macTarget = Target.target(
         "Shared/PrivacyInfo.xcprivacy",
         "Shared/Localizable.xcstrings",
     ],
-    entitlements: .file(path: "macOS/TailnetDemo.entitlements"),
+    entitlements: .file(path: "macOS/Tunnelless.entitlements"),
     scripts: [macIconScript],
     dependencies: [
         // See the iOS target above. Same xcframework, macos-arm64 slice.
         .xcframework(path: "../vendor/TailscaleKit.xcframework"),
     ],
     settings: .settings(base: [
-        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tailnetdemo",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
         // Suppress actool's auto-injection of CFBundleIconName=AppIcon.
         // Empty value = actool emits Assets.car as before but does not set
         // the key, so macOS reads CFBundleIconFile → our hand-rolled .icns.
@@ -151,16 +151,16 @@ let macTarget = Target.target(
 // MARK: - UI test targets
 
 let iosUITestTarget = Target.target(
-    name: "TailnetDemoUITests",
+    name: "TunnellessUITests",
     destinations: [.iPhone, .iPad],
     product: .uiTests,
-    bundleId: "com.indiagram.tailnetdemo.uitests",
+    bundleId: "com.indiagram.tunnelless.uitests",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .default,
     sources: ["UITests/**", "Shared/AccessibilityIdentifiers.swift"],
-    dependencies: [.target(name: "TailnetDemo-iOS")],
+    dependencies: [.target(name: "Tunnelless-iOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "TailnetDemo-iOS",
+        "TEST_TARGET_NAME": "Tunnelless-iOS",
         // SnapshotHelper.swift is fastlane-shipped and predates Swift 6's
         // strict-by-default concurrency model. Pin this target to Swift 5
         // mode so the file compiles unmodified — base SWIFT_VERSION is 6.0.
@@ -170,16 +170,16 @@ let iosUITestTarget = Target.target(
 )
 
 let macUITestTarget = Target.target(
-    name: "TailnetDemoMacOSUITests",
+    name: "TunnellessMacOSUITests",
     destinations: [.mac],
     product: .uiTests,
-    bundleId: "com.indiagram.tailnetdemo.macuitests",
+    bundleId: "com.indiagram.tunnelless.macuitests",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .default,
     sources: ["MacOSUITests/**", "Shared/AccessibilityIdentifiers.swift"],
-    dependencies: [.target(name: "TailnetDemo-macOS")],
+    dependencies: [.target(name: "Tunnelless-macOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "TailnetDemo-macOS",
+        "TEST_TARGET_NAME": "Tunnelless-macOS",
         // AppStoreScreenshotTests overrides XCTestCase.setUpWithError /
         // tearDownWithError in a @MainActor class — Swift 6 errors on
         // main-actor-isolated mutation in nonisolated overrides. Pin this
@@ -192,67 +192,67 @@ let macUITestTarget = Target.target(
 // MARK: - Unit test targets (sanity tests; forks should add real tests here)
 
 let iosUnitTestTarget = Target.target(
-    name: "TailnetDemoTests",
+    name: "TunnellessTests",
     destinations: [.iPhone, .iPad],
     product: .unitTests,
-    bundleId: "com.indiagram.tailnetdemo.tests",
+    bundleId: "com.indiagram.tunnelless.tests",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .default,
     sources: ["Tests/**"],
-    dependencies: [.target(name: "TailnetDemo-iOS")],
+    dependencies: [.target(name: "Tunnelless-iOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "TailnetDemo-iOS",
+        "TEST_TARGET_NAME": "Tunnelless-iOS",
     ])
 )
 
 let macUnitTestTarget = Target.target(
-    name: "TailnetDemoMacOSTests",
+    name: "TunnellessMacOSTests",
     destinations: [.mac],
     product: .unitTests,
-    bundleId: "com.indiagram.tailnetdemo.mactests",
+    bundleId: "com.indiagram.tunnelless.mactests",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .default,
     sources: ["MacOSTests/**"],
-    dependencies: [.target(name: "TailnetDemo-macOS")],
+    dependencies: [.target(name: "Tunnelless-macOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "TailnetDemo-macOS",
+        "TEST_TARGET_NAME": "Tunnelless-macOS",
     ])
 )
 
 // MARK: - Schemes
 
 let iosScheme: Scheme = .scheme(
-    name: "TailnetDemo-iOS",
+    name: "Tunnelless-iOS",
     shared: true,
     // NB: only the main app target — UI tests live in testAction only.
-    // Including TailnetDemoUITests here would compile it during plain
+    // Including TunnellessUITests here would compile it during plain
     // `xcodebuild build` and trip strict-concurrency errors that the
     // per-target SWIFT_STRICT_CONCURRENCY=minimal override can't suppress.
-    buildAction: .buildAction(targets: ["TailnetDemo-iOS"]),
+    buildAction: .buildAction(targets: ["Tunnelless-iOS"]),
     testAction: .targets(
-        ["TailnetDemoUITests", "TailnetDemoTests"],
+        ["TunnellessUITests", "TunnellessTests"],
         configuration: .debug
     ),
-    runAction: .runAction(configuration: .debug, executable: "TailnetDemo-iOS"),
+    runAction: .runAction(configuration: .debug, executable: "Tunnelless-iOS"),
     archiveAction: .archiveAction(configuration: .release)
 )
 
 let macScheme: Scheme = .scheme(
-    name: "TailnetDemo-macOS",
+    name: "Tunnelless-macOS",
     shared: true,
-    buildAction: .buildAction(targets: ["TailnetDemo-macOS"]),
+    buildAction: .buildAction(targets: ["Tunnelless-macOS"]),
     testAction: .targets(
-        ["TailnetDemoMacOSUITests", "TailnetDemoMacOSTests"],
+        ["TunnellessMacOSUITests", "TunnellessMacOSTests"],
         configuration: .debug
     ),
-    runAction: .runAction(configuration: .debug, executable: "TailnetDemo-macOS"),
+    runAction: .runAction(configuration: .debug, executable: "Tunnelless-macOS"),
     archiveAction: .archiveAction(configuration: .release)
 )
 
 // MARK: - Project
 
 let project = Project(
-    name: "TailnetDemo",
+    name: "Tunnelless",
     options: .options(
         defaultKnownRegions: ["en"],
         developmentRegion: "en"

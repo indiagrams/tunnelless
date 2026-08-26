@@ -67,7 +67,7 @@ jobs:
       - name: fetch TailscaleKit.xcframework
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/embedded-tailscale-ios' }}
+          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/tunnelless' }}
         run: |
           set -euo pipefail
           TSNET_VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"

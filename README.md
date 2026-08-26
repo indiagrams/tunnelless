@@ -1,4 +1,4 @@
-# embedded-tailscale-ios
+# Tunnelless
 
 > **Put an iOS or macOS app on a Tailscale network without a VPN profile.**
 > No `NEPacketTunnelProvider`, no NetworkExtension entitlement, no "Allow VPN
@@ -65,7 +65,7 @@ and there's no published binary, which is why this repo builds one.
 **Option A — add it as a SwiftPM dependency** (easiest)
 
 ```swift
-.package(url: "https://github.com/indiagrams/embedded-tailscale-ios", from: "0.1.0")
+.package(url: "https://github.com/indiagrams/tunnelless", from: "0.1.0")
 ```
 
 **Versioning.** The package version is independent of the Tailscale version it
@@ -173,13 +173,13 @@ than committing it:
 
 ```bash
 xcodebuild build \
-  -project app/TailnetDemo.xcodeproj -scheme TailnetDemo-iOS -configuration Debug \
+  -project app/Tunnelless.xcodeproj -scheme Tunnelless-iOS -configuration Debug \
   -destination 'id=<YOUR-DEVICE-UDID>' -allowProvisioningUpdates \
   DEVELOPMENT_TEAM=<YOUR-TEAM-ID>
 
-xcrun devicectl device install app --device <UDID> <path>/TailnetDemo-iOS.app
+xcrun devicectl device install app --device <UDID> <path>/Tunnelless-iOS.app
 xcrun devicectl device process launch --device <UDID> \
-  --terminate-existing --console com.indiagram.tailnetdemo -- -autoconnect
+  --terminate-existing --console com.indiagram.tunnelless -- -autoconnect
 ```
 
 Four Apple-side prerequisites, each of which fails with an error that does not
@@ -199,7 +199,7 @@ without attaching a debugger:
 
 ```
 [TailscaleKit] init: tailscale_start sd=… returned res=0
-[TailnetDemo] tsnet SOCKS5 loopback: 127.0.0.1:49405
+[Tunnelless] tsnet SOCKS5 loopback: 127.0.0.1:49405
 [TailscaleKit] up(): tailscale_up sd=… returned res=0
 ```
 

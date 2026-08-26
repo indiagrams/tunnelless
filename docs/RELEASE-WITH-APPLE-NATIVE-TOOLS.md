@@ -92,10 +92,10 @@ This template uses Xcode 15+; you're already covered.
 
 The conventions below assume:
 
-- Bundle ID: `com.indiagram.tailnetdemo` (substitute yours)
-- Scheme: `TailnetDemo-iOS` / `TailnetDemo-macOS`
+- Bundle ID: `com.indiagram.tunnelless` (substitute yours)
+- Scheme: `Tunnelless-iOS` / `Tunnelless-macOS`
 - Team ID: read from `.bootstrap.env` as `FASTLANE_TEAM_ID` (set by `make init` + your edits)
-- Build artifacts: `build/TailnetDemo-<version>.ipa`, `build/TailnetDemo-<version>.pkg`
+- Build artifacts: `build/Tunnelless-<version>.ipa`, `build/Tunnelless-<version>.pkg`
 - ASC API key path: `~/.appstoreconnect/AuthKey_<KEYID>.p8` (per
   [`docs/APPLE-PREREQS.md`](APPLE-PREREQS.md))
 
@@ -123,11 +123,11 @@ TEAM_ID="$FASTLANE_TEAM_ID"
 ( cd app && xcodegen generate )
 
 WORK_DIR="$(mktemp -d)"
-IOS_ARCHIVE="$WORK_DIR/TailnetDemo-iOS.xcarchive"
+IOS_ARCHIVE="$WORK_DIR/Tunnelless-iOS.xcarchive"
 
 xcodebuild archive \
-  -project app/TailnetDemo.xcodeproj \
-  -scheme TailnetDemo-iOS \
+  -project app/Tunnelless.xcodeproj \
+  -scheme Tunnelless-iOS \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$IOS_ARCHIVE" \
@@ -160,7 +160,7 @@ xcodebuild -exportArchive \
   -allowProvisioningUpdates
 
 IPA_SRC=$(find "$IOS_EXPORT" -maxdepth 2 -name "*.ipa" | head -1)
-IPA_DEST="build/TailnetDemo-${VERSION}.ipa"
+IPA_DEST="build/Tunnelless-${VERSION}.ipa"
 cp "$IPA_SRC" "$IPA_DEST"
 shasum -a 256 "$IPA_DEST" | tee "$IPA_DEST.sha256"
 ```
@@ -183,10 +183,10 @@ ln -sf ~/.appstoreconnect/AuthKey_${ASC_API_KEY_ID}.p8 \
 
 xcrun altool --upload-package "$IPA_DEST" \
   --type ios \
-  --apple-id "com.indiagram.tailnetdemo" \
+  --apple-id "com.indiagram.tunnelless" \
   --bundle-version "$VERSION" \
   --bundle-short-version-string "$VERSION" \
-  --bundle-id "com.indiagram.tailnetdemo" \
+  --bundle-id "com.indiagram.tunnelless" \
   --apiKey "$ASC_API_KEY_ID" \
   --apiIssuer "$ASC_API_KEY_ISSUER_ID"
 ```
@@ -290,11 +290,11 @@ between export and upload.
 ### 1. Archive
 
 ```bash
-MACOS_ARCHIVE="$WORK_DIR/TailnetDemo-macOS.xcarchive"
+MACOS_ARCHIVE="$WORK_DIR/Tunnelless-macOS.xcarchive"
 
 xcodebuild archive \
-  -project app/TailnetDemo.xcodeproj \
-  -scheme TailnetDemo-macOS \
+  -project app/Tunnelless.xcodeproj \
+  -scheme Tunnelless-macOS \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -archivePath "$MACOS_ARCHIVE" \
@@ -351,7 +351,7 @@ INSTALLER_CERT=$(security find-identity -v -p basic 2>/dev/null \
   | grep -E "3rd Party Mac Developer Installer|Mac Installer Distribution" \
   | head -1 | grep -oE '"[^"]+"' | tr -d '"')
 
-PKG_DEST="build/TailnetDemo-${VERSION}.pkg"
+PKG_DEST="build/Tunnelless-${VERSION}.pkg"
 productbuild --component "$EXPANDED_APP" /Applications \
   --sign "$INSTALLER_CERT" \
   --timestamp \
@@ -366,10 +366,10 @@ Same `xcrun altool` flow as iOS, but `--type macos` and the .pkg path:
 ```bash
 xcrun altool --upload-package "$PKG_DEST" \
   --type macos \
-  --apple-id "com.indiagram.tailnetdemo" \
+  --apple-id "com.indiagram.tunnelless" \
   --bundle-version "$VERSION" \
   --bundle-short-version-string "$VERSION" \
-  --bundle-id "com.indiagram.tailnetdemo" \
+  --bundle-id "com.indiagram.tunnelless" \
   --apiKey "$ASC_API_KEY_ID" \
   --apiIssuer "$ASC_API_KEY_ISSUER_ID"
 ```
