@@ -1,0 +1,152 @@
+name: tailscale-upstream-watch
+
+# Weekly staleness + patch-drift report, delivered as ONE self-updating issue.
+#
+# What it watches, and why each matters:
+#
+#   1. tailscale.com releases vs the version pinned in
+#      vendor/libtailscale/go.mod. This project deliberately pins to a
+#      known-good version (see README), so the goal is to KNOW you are stale,
+#      not to bump automatically.
+#
+#   2. Whether the upstream patches build-tailscalekit.sh carries have merged.
+#      While tailscale#20985 is unmerged the build script patches the Go module
+#      cache and hard-fails if the patch stops applying. Once it merges AND
+#      ships in the pinned version, that patch step becomes dead code that
+#      keeps "succeeding" forever. Nothing else would ever tell you.
+#
+# It opens or edits a single issue rather than filing a new one each week, so
+# it cannot become a notification treadmill. If nothing is stale and no patch
+# has landed, any existing issue is closed.
+
+on:
+  schedule:
+    - cron: '17 6 * * 1'   # Mondays 06:17 UTC — off the hour on purpose
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: tailscale-upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: gather state
+        id: state
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          PINNED="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          if [ -z "$PINNED" ]; then
+            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            exit 1
+          fi
+
+          # Tailscale tags stable releases as vX.Y.Z. Filter out anything with
+          # a suffix (-pre, -rc) so a prerelease never reads as "you are stale".
+          LATEST="$(gh release list --repo tailscale/tailscale --limit 30 \
+                      --json tagName,isPrerelease,isDraft \
+                      -q '[.[] | select(.isPrerelease==false and .isDraft==false)
+                              | .tagName | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0]')"
+          [ -z "$LATEST" ] && LATEST="$PINNED"
+
+          echo "pinned=$PINNED" >> "$GITHUB_OUTPUT"
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          if [ "$PINNED" = "$LATEST" ]; then
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Pinned: $PINNED   Latest stable: $LATEST"
+
+          # Patch drift. 20985 is the one build-tailscalekit.sh actively
+          # patches in; 19052 is already merged and is checked only so the
+          # note in TAILSCALE.md can be retired when it is no longer relevant.
+          merged_state () {
+            gh pr view "$1" --repo tailscale/tailscale --json state -q .state 2>/dev/null || echo UNKNOWN
+          }
+          P20985="$(merged_state 20985)"
+          echo "p20985=$P20985" >> "$GITHUB_OUTPUT"
+          echo "tailscale#20985: $P20985"
+
+          # Does the build script still think it needs to patch?
+          if grep -q '20985' tailscale/build-tailscalekit.sh; then
+            echo "patch_present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "patch_present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: open, update, or close the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PINNED: ${{ steps.state.outputs.pinned }}
+          LATEST: ${{ steps.state.outputs.latest }}
+          STALE: ${{ steps.state.outputs.stale }}
+          P20985: ${{ steps.state.outputs.p20985 }}
+          PATCH_PRESENT: ${{ steps.state.outputs.patch_present }}
+          TITLE: "Upstream watch: Tailscale version + carried patches"
+        run: |
+          set -euo pipefail
+
+          NEEDS_ATTENTION=false
+          BODY="_Maintained automatically by \`.github/workflows/tailscale-upstream-watch.yml\`. Edited in place each Monday; closed when there is nothing to do._"
+          BODY="$BODY"$'\n\n'"## Pinned Tailscale version"$'\n\n'
+          BODY="$BODY"'| | version |'$'\n''| --- | --- |'$'\n'
+          BODY="$BODY""| pinned (\`vendor/libtailscale/go.mod\`) | \`$PINNED\` |"$'\n'
+          BODY="$BODY""| latest stable upstream | \`$LATEST\` |"$'\n\n'
+
+          if [ "$STALE" = "true" ]; then
+            NEEDS_ATTENTION=true
+            BODY="$BODY"":warning: A newer stable release is available."$'\n\n'
+            BODY="$BODY""This project pins deliberately, so being behind is not automatically a bug. Bump when you want the newer version:"$'\n\n'
+            BODY="$BODY"'```'$'\n'
+            BODY="$BODY""gh workflow run tailscale-bump.yml -f version=$LATEST"$'\n'
+            BODY="$BODY"'```'$'\n\n'
+            BODY="$BODY""That prepares a PR; it does not merge or publish anything."$'\n\n'
+          else
+            BODY="$BODY"":white_check_mark: Up to date with the latest stable release."$'\n\n'
+          fi
+
+          BODY="$BODY""## Carried patches"$'\n\n'
+          BODY="$BODY""\`tailscale/build-tailscalekit.sh\` patches [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) into the Go module cache and hard-fails if it stops applying."$'\n\n'
+          BODY="$BODY""- upstream state of #20985: **$P20985**"$'\n'
+          BODY="$BODY""- patch still present in the build script: **$PATCH_PRESENT**"$'\n\n'
+
+          if [ "$P20985" = "MERGED" ] && [ "$PATCH_PRESENT" = "true" ]; then
+            NEEDS_ATTENTION=true
+            BODY="$BODY"":warning: #20985 has merged upstream. Once the pinned version contains it, delete the patch step from \`build-tailscalekit.sh\` and drop the note from \`TAILSCALE.md\`. Verify by grepping the tagged source — a release tag's date does not tell you whether it contains a commit."$'\n\n'
+          fi
+
+          EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+                        --search "\"$TITLE\" in:title" --json number -q '.[0].number' || true)"
+
+          if [ "$NEEDS_ATTENTION" = "false" ]; then
+            if [ -n "$EXISTING" ]; then
+              gh issue close "$EXISTING" --repo "$GITHUB_REPOSITORY" \
+                --comment "Nothing outstanding: pinned \`$PINNED\` is the latest stable, and no carried patch needs action."
+              echo "Closed #$EXISTING — nothing to report."
+            else
+              echo "Nothing to report, no open issue. Done."
+            fi
+            exit 0
+          fi
+
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+            echo "Updated #$EXISTING"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+            echo "Opened a new tracking issue"
+          fi

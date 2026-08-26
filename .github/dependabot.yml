@@ -65,3 +65,22 @@ updates:
       ruby-setup:
         patterns:
           - "ruby/*"
+
+  # The pinned TailscaleKit build comes from vendor/libtailscale (a fork).
+  # When that fork's main moves, this opens a PR advancing the submodule
+  # pointer here, so the pin never silently drifts behind the fork.
+  #
+  # Note this does NOT notice new tailscale.com releases — those land in the
+  # fork's go.mod, one repo upstream. tailscale-upstream-watch.yml covers that.
+  - package-ecosystem: gitsubmodule
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - tailscale
+    commit-message:
+      prefix: "chore(deps)"

@@ -152,6 +152,35 @@ pipeline, TestFlight, App Store submission, Tuist migration — see
 removed from this repo rather than maintained in duplicate; a visitor here is
 looking for Tailscale, not release engineering.
 
+## Maintenance automation
+
+Four workflows keep this pinned-by-design project from drifting silently. None
+of them publishes anything without a human merge.
+
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `tailscale-upstream-watch.yml` | Mondays 06:17 UTC | Compares the pinned `tailscale.com` version against the latest stable release, and checks whether the patches `build-tailscalekit.sh` carries have merged upstream. Maintains **one** self-updating issue; closes it when there is nothing to do. |
+| `tailscale-bump.yml` | manual | Prepares a bump: edits `go.mod` in the libtailscale fork, verifies the bindings compile, rebuilds and validates the xcframework, builds the app on both generators, then opens a PR. Never merges. |
+| `release-xcframework.yml` | push to `main` touching `vendor/libtailscale` | Builds, validates, and publishes the release for the pinned version. Idempotent — skips if the tag exists. |
+| `macos-sandbox-check.yml` | PRs touching macOS/Tailscale paths | Signs ad-hoc, launches, and asserts `tailscale_start ... res=0`. The only job that exercises an enforced App Sandbox. |
+
+Dependabot additionally watches `gitsubmodule`, so the submodule pin cannot fall
+behind the fork unnoticed. It does **not** see new `tailscale.com` releases —
+those land in the fork's `go.mod`, one repo upstream, which is what
+`tailscale-upstream-watch.yml` is for.
+
+**`tailscale-bump.yml` needs a credential.** Pushing to the libtailscale fork is
+a cross-repo write that `GITHUB_TOKEN` cannot do. Store a fine-grained PAT with
+`contents:write` on that repo as `LIBTAILSCALE_PAT`. Without it the workflow
+stops immediately and says so rather than half-finishing; `dry_run: true` builds
+and validates without needing it.
+
+**Why bumping is not one line.** The version lives in a different repository, and
+that fork carries local patches — including the `[TailscaleKit]` NSLog tracing
+(`b50094a`) that `macos-sandbox-check.yml` greps for. The bump workflow asserts
+that patch survived, because losing it would silently blind the sandbox guard
+rather than fail.
+
 ## Fork conventions
 
 ### Accepted divergence: the TailscaleKit fetch step in `pr.yml`
