@@ -58,8 +58,6 @@ jobs:
       APP_NAME: ${{ vars.APP_NAME || 'TailnetDemo' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: true
 
       - name: install generator
         run: brew install xcodegen
@@ -72,9 +70,9 @@ jobs:
           TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/embedded-tailscale-ios' }}
         run: |
           set -euo pipefail
-          TSNET_VERSION="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          TSNET_VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
           if [ -z "$TSNET_VERSION" ]; then
-            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
           gh release download "tailscalekit-${TSNET_VERSION}" \

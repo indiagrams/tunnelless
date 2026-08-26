@@ -38,8 +38,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: true
 
       - name: gather state
         id: state
@@ -48,9 +46,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          PINNED="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          PINNED="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
           if [ -z "$PINNED" ]; then
-            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
 
