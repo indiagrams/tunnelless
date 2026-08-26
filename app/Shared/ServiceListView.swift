@@ -91,15 +91,11 @@ struct ServiceEditor: View {
                     TextField("Name", text: $name)
                         .accessibilityIdentifier(AccessibilityIdentifiers.serviceNameField)
                     TextField("Host or tailnet IP", text: $host)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.body.monospaced())
+                        .plainTextEntry()
                     TextField("Port", text: $port)
                         .font(.body.monospaced())
                     TextField("Path", text: $path)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.body.monospaced())
+                        .plainTextEntry()
                 }
                 Section {
                     Text("Requests go over your Tailscale network through this app's "
@@ -130,5 +126,23 @@ struct ServiceEditor: View {
                 }
             }
         }
+    }
+}
+
+private extension View {
+    /// Monospaced, no autocorrect, no autocapitalisation — the right treatment for a
+    /// hostname or a path.
+    ///
+    /// `textInputAutocapitalization` is iOS-only and fails to compile on macOS. These
+    /// views are shared, and `make check` runs `--fast`, which builds iOS alone — so the
+    /// break only appeared in CI. Wrapping it here keeps the difference in one place
+    /// instead of scattering `#if os(iOS)` through the form.
+    func plainTextEntry() -> some View {
+        let base = autocorrectionDisabled().font(.body.monospaced())
+        #if os(iOS)
+            return base.textInputAutocapitalization(.never)
+        #else
+            return base
+        #endif
     }
 }
