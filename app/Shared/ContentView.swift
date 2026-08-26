@@ -156,12 +156,109 @@ final class DemoModel {
                 isRunning = true
                 statusText = "running"
                 authURL = nil
+                await runProbeIfRequested()
+                await runLocalAPIProbeIfRequested()
             }
         } catch {
             errorText = String(describing: error)
             statusText = "failed"
         }
         isBusy = false
+    }
+
+    /// Launch with `-probe <host:port>` to GET `http://<host:port>/` through the node's
+    /// SOCKS5 proxy and log the outcome.
+    ///
+    /// This answers the one question the simulator cannot: whether app traffic actually
+    /// traverses the tailnet on a physical device. `LocalAPIClient` is known to hang on
+    /// device (see TAILSCALE.md), and it reaches the LocalAPI *through this same loopback
+    /// listener* — so whether ordinary SOCKS5 forwarding also hangs, or only the LocalAPI
+    /// path does, determines what this app can be built on.
+    private func probeResult(_ text: String) {
+        NSLog("[probe] %@", text)
+    }
+
+    private func runProbeIfRequested() async {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-probe"), i + 1 < args.count else { return }
+        let target = args[i + 1]
+        guard let colon = target.lastIndex(of: ":"),
+              let port = UInt16(target[target.index(after: colon)...])
+        else {
+            probeResult("bad -probe target '\(target)'; expected host:port")
+            return
+        }
+        let host = String(target[..<colon])
+
+        guard let lb = await manager.cachedLoopback,
+              let client = SOCKS5Client(loopbackAddress: lb.address, credential: lb.proxyCredential)
+        else {
+            probeResult("no loopback config; cannot build SOCKS5 client")
+            return
+        }
+
+        probeResult("dialing \(host):\(port) via SOCKS5 \(lb.address)")
+        let started = Date()
+        do {
+            let response = try await client.get(host: host, port: port)
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let firstLine = response.split(separator: "\r\n").first.map(String.init) ?? "<empty>"
+            let ok = response.contains("TUNNELLESS_SOCKS_PROBE_OK")
+            probeResult("RESULT \(ok ? "OK" : "UNEXPECTED") in \(ms)ms — \(firstLine)")
+            probeResult("body-contains-token=\(ok) bytes=\(response.utf8.count)")
+        } catch {
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            probeResult("RESULT FAILED in \(ms)ms — \(String(describing: error))")
+        }
+    }
+
+    /// Launch with `-localapi` to hit `/localapi/v0/status` directly, bypassing
+    /// `LocalAPIClient` entirely.
+    ///
+    /// TAILSCALE.md records that every `LocalAPIClient` call hangs forever on device. The
+    /// SOCKS5 probe proves the same loopback listener forwards fine, so this isolates
+    /// which side owns the bug: if a raw request with the documented credentials returns,
+    /// the fault is in `LocalAPIClient`, and peer data is reachable after all.
+    ///
+    /// Per vendor/libtailscale/tailscale.h the LocalAPI requires BOTH a
+    /// `Sec-Tailscale: localapi` header AND basic auth with local_api_cred as the password.
+    private func runLocalAPIProbeIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-localapi") else { return }
+        guard let lb = await manager.cachedLoopback else {
+            probeResult("localapi: no loopback config")
+            return
+        }
+        guard let url = URL(string: "http://\(lb.address)/localapi/v0/status") else {
+            probeResult("localapi: bad url from address '\(lb.address)'")
+            return
+        }
+
+        var req = URLRequest(url: url)
+        req.setValue("localapi", forHTTPHeaderField: "Sec-Tailscale")
+        let basic = Data(":\(lb.localAPIKey)".utf8).base64EncodedString()
+        req.setValue("Basic \(basic)", forHTTPHeaderField: "Authorization")
+        // A short timeout is the whole point: the documented symptom is an
+        // indefinite hang with no error, which is indistinguishable from a very
+        // slow call unless we bound it.
+        req.timeoutInterval = 15
+
+        probeResult("localapi: GET \(url.absoluteString)")
+        let started = Date()
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            probeResult("localapi: RESULT HTTP \(code) in \(ms)ms, \(data.count) bytes")
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let peers = (json["Peer"] as? [String: Any])?.count ?? 0
+                probeResult("localapi: BackendState=\(json["BackendState"] ?? "?") peers=\(peers)")
+            } else {
+                probeResult("localapi: body head — \(String(decoding: data.prefix(200), as: UTF8.self))")
+            }
+        } catch {
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            probeResult("localapi: RESULT FAILED in \(ms)ms — \(String(describing: error))")
+        }
     }
 
     /// Reads tsnet's log stream for the auth URL and the Running transition.
