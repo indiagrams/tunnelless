@@ -92,6 +92,16 @@ variables over edits. The one accepted exception is documented under
 Do **not** commit secrets. `.bootstrap.env` and `.p8` files are gitignored; real
 values live in GitHub Secrets and `~/.config/secrets/`.
 
+### Release tooling
+
+Each of these cost real debugging time, and each fails *silently* — the command
+reports success while acting on the wrong target.
+
+| Rule | Why |
+|---|---|
+| Always pass `-R indiagrams/tunnelless` to `gh` | This clone has two remotes: `origin` (this fork) and `upstream` (apple-shipkit). `gh` resolves the base repo through `upstream`, and **`gh repo set-default` does not reliably override it** — `gh secret list` even fails outright with "multiple remotes detected". `gh variable set APP_NAME` once wrote `APP_NAME`, `BUNDLE_ID`, and `TSKIT_RELEASE_REPO` to *apple-shipkit*, where a pre-existing `DEPENDABOT_AUTOMERGE` made the verifying `gh variable list` look correct. This fork's CI then fell back to the template default and every app matrix cell failed with `app/TailnetDemo.xcodeproj does not exist`. Verify writes through the REST API (`gh api repos/<owner>/<repo>/actions/variables`), not `gh`'s own repo resolution. |
+| `.bootstrap.env` stores `ASC_API_KEY_P8_PATH`; fastlane reads `ASC_API_KEY_P8_BASE64` | The `Fastfile` header documents `ASC_API_KEY_P8_PATH`, but its `asc_api_key` helper does `ENV.fetch("ASC_API_KEY_P8_BASE64")`. Both are correct: `bin/lib/bootstrap.rb` derives the base64 form from the path when `make ship` exports the environment. The mismatch only bites when invoking a lane directly, which fails with the misleading `Authentication credentials are missing or invalid` — a message that reads like a bad key rather than an unset variable. Before a direct `fastlane <lane>`, export it: `export ASC_API_KEY_P8_BASE64=$(openssl base64 -A -in "$ASC_API_KEY_P8_PATH")`. |
+
 ## Where code goes
 
 | What | Where |
