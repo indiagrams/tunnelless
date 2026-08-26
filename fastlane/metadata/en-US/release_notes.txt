@@ -1,1 +1,3 @@
-TODO: per-release notes go here. Replaced for every new App Store version.
+First release.
+
+Join your Tailscale network from iPhone, iPad, or Mac with no VPN profile, no NetworkExtension, and no device-wide routing changes. Connect, see your private IP and local SOCKS5 proxy address, and sign out cleanly.

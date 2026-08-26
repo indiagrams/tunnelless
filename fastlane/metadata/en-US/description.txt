@@ -1,5 +1,20 @@
-TODO: replace with your App Store description (up to 4000 characters).
+Tunnelless puts your iPhone, iPad, or Mac on your private Tailscale network without installing a VPN profile.
 
-Replace this file before running `fastlane ios upload_metadata` /
-`fastlane mac upload_metadata`. App Store Review will reject submissions whose
-description still contains the literal "TODO".
+Apps that reach a private network normally need a system VPN: a NetworkExtension, an "Allow VPN configuration" prompt, and a profile that takes over device-wide routing and conflicts with any other VPN you already run. Tunnelless does none of that. It runs a userspace network node inside the app and exposes a local SOCKS5 proxy, so only this app's traffic uses your private network. The rest of your device is untouched, and you can keep running your work VPN at the same time.
+
+WHAT IT DOES
+
+• Joins your existing Tailscale network with a standard browser sign-in
+• Shows your node's private IP address once connected
+• Exposes a local SOCKS5 proxy address for reaching machines on your network
+• Signs out and deletes local state on demand
+
+REQUIREMENTS
+
+• A Tailscale account. Tunnelless connects to a network you already have. It is not an account, hosting, or subscription service, and it does not create networks for you.
+
+PRIVACY
+
+Tunnelless collects no data, includes no analytics, and performs no tracking. Sign-in happens directly with Tailscale; your credentials are never seen by us. Network state is stored only on your device and is removed when you sign out.
+
+Tailscale is a registered trademark of Tailscale Inc. Tunnelless is built by Indiagram LLC and is not affiliated with, endorsed by, or sponsored by Tailscale Inc.
