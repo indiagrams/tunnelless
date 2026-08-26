@@ -27,6 +27,11 @@
 
 import PackageDescription
 
+// Hoisted so the line fits SwiftLint's 140-char limit. It must stay on ONE
+// line and keep this exact shape: tailscale/verify-package-manifest.sh greps
+// the URL out of this file to check it still matches the pinned version.
+let assetURL = "https://github.com/indiagrams/embedded-tailscale-ios/releases/download/tailscalekit-v1.102.3/TailscaleKit.xcframework.zip"
+
 let package = Package(
     name: "TailscaleKit",
     // Matches the slices actually present in the xcframework: ios-arm64,
@@ -43,7 +48,7 @@ let package = Package(
         // archive; SwiftPM resolves it by that name.
         .binaryTarget(
             name: "TailscaleKit",
-            url: "https://github.com/indiagrams/embedded-tailscale-ios/releases/download/tailscalekit-v1.102.3/TailscaleKit.xcframework.zip",
+            url: assetURL,
             checksum: "0b73d55c44174951693cf02abcdcb75f854931d95c61a1628bda550a7ab91bba"
         ),
     ]
