@@ -1510,7 +1510,7 @@ lane :adopt_existing_app do |options|
         "returned false in non-interactive mode, so download_metadata exited " \
         "0 without doing any work. Our lane already passes --force; if you're " \
         "seeing this, fastlane's gate logic likely changed in a newer " \
-        "version. File an issue at indiagrams/embedded-tailscale-ios. Workaround: try " \
+        "version. File an issue at indiagrams/apple-shipkit. Workaround: try " \
         "`bundle update fastlane` and re-run `make adopt`."
       )
     end

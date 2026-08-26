@@ -9,7 +9,7 @@ ship with what `xcode-select --install` already provides.
 > remains [fastlane](../fastlane/Fastfile) (`fastlane release tag:vX.Y.Z`).
 > This doc shows the equivalent commands you'd run if you replaced
 > fastlane with Apple's own tools — useful as a recipe, a reference, or a
-> migration plan. Tracked in [#35](https://github.com/indiagrams/embedded-tailscale-ios/issues/35).
+> migration plan. Tracked in [#35](https://github.com/indiagrams/apple-shipkit/issues/35).
 
 ## Why this exists
 
@@ -30,7 +30,7 @@ Pick fastlane if you want one tool that does build + upload + screenshots
 + metadata + signing-management. (As of v1.6 apple-shipkit's own fastlane
 lane uses `sigh` for profile fetching and mints fresh Apple Distribution
 certs per CI run via the App Store Connect API instead of routing through
-`match` + a certs repo — see [`docs/BOOTSTRAP.md`](BOOTSTRAP.md). `match`
+`match` + a certs repo — see [apple-shipkit's `docs/BOOTSTRAP.md`](https://github.com/indiagrams/apple-shipkit/blob/main/docs/BOOTSTRAP.md). `match`
 remains an option in the fastlane ecosystem if you'd rather keep a
 long-lived certs repo.) Pick Apple-native if you'd rather not depend on
 a Ruby gem and you're comfortable wiring the pieces together yourself.
@@ -224,7 +224,7 @@ Each TestFlight build can carry a localized "What to Test" string (the
 `BetaBuildLocalization` resource). fastlane pilot's `set_changelog`
 path is structurally broken in 2.233.1 (logs success but never POSTs
 the localization for fresh builds — see
-[`docs/CONTINUOUS-VALIDATION.md`](CONTINUOUS-VALIDATION.md) G15);
+[apple-shipkit's `docs/CONTINUOUS-VALIDATION.md`](https://github.com/indiagrams/apple-shipkit/blob/main/docs/CONTINUOUS-VALIDATION.md) G15);
 the Apple-native equivalent below sidesteps that:
 
 > **Note:** As of v1.6, the template's own fastlane release lane already
@@ -579,4 +579,4 @@ What you gain:
 - Apple — [App Store Connect API key setup](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
 - `man xcodebuild`, `man notarytool`, `man stapler`, `man codesign`, `man productbuild`
 - altool man (community-mirrored, 2019 baseline; flags unchanged): <https://keith.github.io/xcode-man-pages/altool.1.html>
-- This template — [`docs/APPLE-PREREQS.md`](APPLE-PREREQS.md), [`SCOPE.md`](../SCOPE.md), [`ci/local-release-check.sh`](../ci/local-release-check.sh), [`ci/ExportOptions-iOS.plist`](../ci/ExportOptions-iOS.plist), [`ci/ExportOptions-macOS-AppStore.plist`](../ci/ExportOptions-macOS-AppStore.plist)
+- This template — [`docs/APPLE-PREREQS.md`](APPLE-PREREQS.md), [`ci/local-release-check.sh`](../ci/local-release-check.sh), [`ci/ExportOptions-iOS.plist`](../ci/ExportOptions-iOS.plist), [`ci/ExportOptions-macOS-AppStore.plist`](../ci/ExportOptions-macOS-AppStore.plist)

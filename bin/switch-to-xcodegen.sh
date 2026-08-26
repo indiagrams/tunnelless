@@ -153,8 +153,8 @@ gate_project_yml_in_history() {
   PROJECT_YML_SHA=$(git log --all --diff-filter=AM --pretty=format:'%H' -- app/project.yml 2>/dev/null | head -1 || true)
   if [ -z "$PROJECT_YML_SHA" ]; then
     fail "app/project.yml not found in git history — this fork was never xcodegen-shaped.
-   Restoring manually requires fetching project.yml from indiagrams/embedded-tailscale-ios/main:
-     curl -fsSL https://raw.githubusercontent.com/indiagrams/embedded-tailscale-ios/main/app/project.yml > app/project.yml"
+   Restoring manually requires fetching project.yml from indiagrams/apple-shipkit/main:
+     curl -fsSL https://raw.githubusercontent.com/indiagrams/apple-shipkit/main/app/project.yml > app/project.yml"
   fi
   ok "app/project.yml found in commit ${PROJECT_YML_SHA:0:8}"
 }

@@ -118,7 +118,7 @@ bundle exec fastlane revoke_certs ids:CERT_ID_1,CERT_ID_2
 Both the canary and `release.yml` then mint into the freed slots per
 run and revoke on `always()`. Net team-cert delta per run = 0; your
 existing shipping certs are never touched. See
-[docs/CONTINUOUS-VALIDATION.md](CONTINUOUS-VALIDATION.md) for the full
+[apple-shipkit's docs/CONTINUOUS-VALIDATION.md](https://github.com/indiagrams/apple-shipkit/blob/main/docs/CONTINUOUS-VALIDATION.md) for the full
 architecture.
 
 ## Reference
