@@ -52,4 +52,21 @@ public enum AccessibilityIdentifiers {
     public static let peerCount = "Tunnelless.peerCount"
     /// A single peer row. Non-unique by design: tests query the collection.
     public static let peerRow = "Tunnelless.peerRow"
+
+    // MARK: - Saved services
+
+    /// Opens the saved-services list.
+    public static let servicesButton = "Tunnelless.servicesButton"
+    /// A saved service row.
+    public static let serviceRow = "Tunnelless.serviceRow"
+    /// Opens the add-service sheet.
+    public static let addServiceButton = "Tunnelless.addServiceButton"
+    /// Name field in the add-service sheet.
+    public static let serviceNameField = "Tunnelless.serviceNameField"
+    /// Confirms the add-service sheet.
+    public static let saveServiceButton = "Tunnelless.saveServiceButton"
+    /// HTTP status badge in the reader.
+    public static let serviceStatus = "Tunnelless.serviceStatus"
+    /// Rendered response body in the reader.
+    public static let serviceBody = "Tunnelless.serviceBody"
 }

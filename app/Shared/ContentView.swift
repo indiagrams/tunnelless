@@ -19,6 +19,7 @@ import TailscaleKit
 struct ContentView: View {
     @State private var model = DemoModel()
     @State private var showPeers = false
+    @State private var showServices = false
 
     var body: some View {
         NavigationStack {
@@ -51,6 +52,13 @@ struct ContentView: View {
                     Label("Browse tailnet", systemImage: "list.bullet.rectangle")
                 }
                 .accessibilityIdentifier(AccessibilityIdentifiers.peersButton)
+
+                Button {
+                    showServices = true
+                } label: {
+                    Label("Services", systemImage: "bookmark")
+                }
+                .accessibilityIdentifier(AccessibilityIdentifiers.servicesButton)
             }
 
             if model.authURL != nil {
@@ -89,6 +97,9 @@ struct ContentView: View {
         .frame(maxWidth: 520, alignment: .leading)
         .navigationDestination(isPresented: $showPeers) {
             PeerListView(manager: model.manager)
+        }
+        .navigationDestination(isPresented: $showServices) {
+            ServiceListView(manager: model.manager)
         }
         .task {
             // Launch with `-autoconnect` to start the node without a tap.
@@ -216,6 +227,7 @@ final class DemoModel {
                 await runLocalAPIProbeIfRequested()
                 await runLocalAPIClientProbeIfRequested()
                 await runPeerProbeIfRequested()
+                await runServiceProbeIfRequested()
             }
         } catch {
             errorText = String(describing: error)

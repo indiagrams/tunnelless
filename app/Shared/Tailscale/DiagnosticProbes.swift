@@ -196,6 +196,48 @@ extension DemoModel {
         }
     }
 
+    /// Launch with `-service <host:port>` to exercise the saved-service path end to end:
+    /// SOCKS5 fetch, HTTP parse, and the renderer that decides what the reader shows.
+    ///
+    /// The parse and render steps are where a saved service silently degrades — a
+    /// mis-split header/body boundary or a wrong content-type branch produces a reader
+    /// full of raw markup rather than an error, which no status code would reveal.
+    func runServiceProbeIfRequested() async {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-service"), i + 1 < args.count else { return }
+        // Accepts host:port or host:port/path, so both renderer branches can be
+        // exercised against real endpoints rather than only in unit tests.
+        let target = args[i + 1]
+        let slash = target.firstIndex(of: "/")
+        let authority = slash.map { String(target[..<$0]) } ?? target
+        let path = slash.map { String(target[$0...]) } ?? "/"
+        guard let colon = authority.lastIndex(of: ":"),
+              let port = UInt16(authority[authority.index(after: colon)...])
+        else {
+            probeResult("service: bad target '\(target)'")
+            return
+        }
+        let host = String(authority[..<colon])
+        guard let lb = await manager.cachedLoopback,
+              let client = SOCKS5Client(loopbackAddress: lb.address, credential: lb.proxyCredential)
+        else {
+            probeResult("service: no loopback config")
+            return
+        }
+        let started = Date()
+        do {
+            let r = try await client.fetch(host: host, port: port, path: path)
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            let type = r.contentType.isEmpty ? "-" : r.contentType
+            probeResult("service: HTTP \(r.statusCode) \(r.reason) in \(ms)ms type=\(type) body=\(r.body.count)B")
+            let rendered = ResponseRenderer.text(for: r)
+            let firstLine = rendered.split(separator: "\n").first.map(String.init) ?? "(empty)"
+            probeResult("service: rendered \(rendered.count) chars, first line: \(firstLine.prefix(60))")
+        } catch {
+            probeResult("service: FAILED in \(Int(Date().timeIntervalSince(started) * 1000))ms — \(String(describing: error))")
+        }
+    }
+
     /// Launch with `-duringup` to probe the LocalAPI *while `up()` is still in flight*.
     ///
     /// Discriminates two candidate causes of the documented "LocalAPIClient hangs on
