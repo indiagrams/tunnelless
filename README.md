@@ -225,20 +225,27 @@ this fork still merges upstream.
 
 ## The one that will cost you a week
 
-`LocalAPIClient` — TailscaleKit's documented control interface — **hangs
-forever on physical iOS devices.** `startLoginInteractive()`,
-`backendStatus()`, `watchIPNBus()`: every call blocks and never returns. No
-error, no timeout. It works fine in the Simulator, which is what makes it
-expensive.
+`LocalAPIClient` — TailscaleKit's documented control interface — **cannot be
+used while the node is coming up.** `startLoginInteractive()`,
+`backendStatus()`, `watchIPNBus()`: every call blocks until `up()` returns,
+which for an interactive login means minutes, and forever if the user never
+finishes. `startLoginInteractive()` is the one you most need in that window.
 
-The bug is in the Swift wrapper, not in tsnet. `proxyVia(_:)` routes every
-LocalAPI request through the SOCKS5 proxy — at the loopback address that proxy
-is itself listening on — so the `CONNECT` never resolves. Measured on a
-physical iPhone with the node Running, the underlying paths are healthy:
-SOCKS5 to a tailnet peer returns 200 in 76 ms, and
-`GET /localapi/v0/status` straight at the loopback address returns 200 in
-69 ms with 65 peers. Reaching it directly requires the `Sec-Tailscale: localapi`
-header plus basic auth with `local_api_cred`, both documented in `tailscale.h`.
+After `up()` returns they all work normally — which is exactly what makes this
+expensive. Every measurement taken from the connected state looks healthy.
+
+The cause is an actor deadlock, not the network. `up()` is `tailscale_up`, a
+blocking C call holding the `TailscaleNode` actor for the whole login flow, and
+every `LocalAPIClient` request awaits `node.loopback()` — actor-isolated, and
+already memoized, so the wait buys nothing. Measured on a physical iPhone with
+the node stuck in `NeedsLogin`: a direct `GET /localapi/v0/status` using a
+loopback config captured beforehand answers in **32 ms**, while
+`LocalAPIClient.backendStatus()` on the same run does not return for **53 s** —
+until `up()` finishes. The listener was never the problem.
+
+Fixed upstream in
+[libtailscale#58](https://github.com/tailscale/libtailscale/pull/58); until it
+lands this repo carries it as a build-time patch.
 
 For the login flow the workaround is `LogPipeLogger`: attach a `LogSink`, read
 tsnet's own log stream, and match on the state transitions. Full explanation,
@@ -261,6 +268,12 @@ Work found here that has gone upstream:
   appear at upload. **Open** ([tailscale#20992](https://github.com/tailscale/tailscale/issues/20992)).
   If it lands, most of `tailscale/build-tailscalekit.sh` becomes unnecessary
   and you can take the xcframework straight from upstream.
+- [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) — adds
+  `nonisolated resolvedLoopback()` so `LocalAPIClient` stops awaiting an actor
+  that `up()` holds for the entire login. **Open**
+  ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
+  Until it lands this repo carries it as
+  `tailscale/patches/0002-localapi-nonisolated-loopback.patch`.
 
 ### Why this repo still exists
 
@@ -273,8 +286,8 @@ first, and this project is built on it.
 
 Closed is not the same as finished, though. Both the App Sandbox requirement
 (`com.apple.security.network.server`, without which a signed macOS build never
-starts tsnet) and the `LocalAPIClient` hang on physical iOS devices were found
-*after* those issues were closed — which is a fair sign of how much this
+starts tsnet) and the bring-up deadlock that makes `LocalAPIClient` unusable
+during login were found *after* those issues were closed — which is a fair sign of how much this
 particular path is currently exercised.
 
 #15410 ends with a maintainer noting *"The HelloTailscale sample should get

@@ -18,20 +18,21 @@ import TailscaleKit
 
 /// Routes tsnet's Go-side log output into a `Pipe` we can read line by line.
 ///
-/// WHY: `LocalAPIClient` is non-functional on physical iOS devices — every HTTP call
-/// through it blocks forever (`startLoginInteractive`, `backendStatus`, `watchIPNBus`).
-/// There is no error and no timeout.
+/// WHY: `LocalAPIClient` cannot be used while the node is coming up — and the login
+/// flow is entirely inside that window. `startLoginInteractive()`, `backendStatus()`
+/// and `watchIPNBus()` all block until `up()` returns.
 ///
-/// The fault is in TailscaleKit's wrapper, not tsnet: `proxyVia(_:)` points a
-/// `ProxyConfiguration(socksv5Proxy:)` at the loopback address, so every LocalAPI call
-/// asks the SOCKS5 proxy to dial the address that proxy is listening on, and the
-/// `CONNECT` never resolves. Measured on device with the node Running, both underlying
-/// paths are healthy — SOCKS5 to a peer returns 200 in 76ms, and a direct
-/// `GET /localapi/v0/status` returns 200 in 69ms with 65 peers. See TAILSCALE.md §1.
+/// The cause is an actor deadlock, not the network. `up()` is a blocking C call that
+/// holds the `TailscaleNode` actor for the whole login flow (see cachedLoopback below),
+/// and every `LocalAPIClient` request awaits `node.loopback()`, which is actor-isolated
+/// — and already memoized, so the wait buys nothing. Measured on device with the node
+/// stuck in `NeedsLogin`: a direct `GET /localapi/v0/status` using the pre-cached
+/// loopback config answers in 32ms, while `backendStatus()` on the same run does not
+/// return for 53s, until `up()` finishes. See TAILSCALE.md §1 and libtailscale#58.
 ///
-/// This log-stream reader stays regardless: it predates the finding, needs no
-/// credentials, and is the one signal available before the node is up. Status and peer
-/// data can be read directly from the LocalAPI instead of scraped from here.
+/// So reading tsnet's log stream is the only reliable way to observe login state on a
+/// stock build. tsnet re-logs the auth URL every few seconds, so a late reader still
+/// catches it. Once `up()` has returned, the LocalAPI is directly readable.
 struct LogPipeLogger: LogSink {
     let pipe: Pipe
     var logFileHandle: Int32? {
