@@ -3,15 +3,16 @@
 // The last known tailnet state, small enough to persist and read from anywhere.
 //
 // WHY this exists: tsnet runs inside the app process, so nothing outside that process
-// can ask it anything. App Intents may be performed while the app is backgrounded, and
-// a widget runs in a different process entirely — neither can start a node or query the
-// LocalAPI. They read this snapshot instead, which the app writes whenever it learns
-// something new.
+// can ask it anything. App Intents may be performed while the app is backgrounded and
+// cannot start a node or query the LocalAPI. They read this snapshot instead, which the
+// app writes whenever it learns something new.
 //
-// Storage is `UserDefaults.standard` for now. When the widget extension lands this moves
-// to a shared App Group container, which is the only way a separate process can read it.
-// That migration is deliberately deferred: an App Group needs a registered identifier and
-// an entitlement on both targets, and none of the App Intents work needs it.
+// `UserDefaults.standard` is the permanent home, not a placeholder. An earlier note here
+// said this would move to a shared App Group "when the widget extension lands" — that
+// widget was considered and dropped. A widget cannot run tsnet, so it could only render
+// stale state behind a button that doesn't connect; the honest version of it is worse
+// than not shipping one. App Intents all execute in the app's own process, so the
+// standard suite is the right store and no App Group is needed.
 
 import Foundation
 
@@ -52,7 +53,7 @@ struct TailnetSnapshot: Codable, Equatable, Sendable {
 enum TailnetSnapshotStore {
     private static let key = "tunnelless.tailnetSnapshot"
 
-    /// Swapped for a shared App Group suite when the widget extension lands.
+    /// The standard suite is correct here: every reader runs in the app's own process.
     private static var defaults: UserDefaults {
         .standard
     }

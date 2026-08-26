@@ -22,9 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   intents answer without launching the app; the two that need the node open it,
   because tsnet runs in the app's process and a first connection needs an
   interactive browser login.
-- `TailnetSnapshot` — the last known state, persisted so an out-of-process
-  intent has something true to report. Seeded at connect and refreshed by the
-  peer list.
+- `TailnetSnapshot` — the last known state, persisted so an intent performed
+  while the app is backgrounded has something true to report. Seeded at connect
+  and refreshed by the peer list.
 - `TailnetSnapshotTests` — 7 tests over the partial-update semantics, including
   a regression for counts being readable without opening the peer list.
 
