@@ -1,144 +1,79 @@
-# Contributing to apple-shipkit
+# Contributing
 
-This is a small, opinionated template for iOS + macOS apps. We say yes to
-fixes for the gotchas hiding in `xcodebuild`, `fastlane deliver`, `actool`,
-and `codesign` — because someone hit them, debugged them, and shouldn't
-have to do that again. We say no to features that fit a specific use case
-but not the broader iOS/macOS world.
+Thanks for looking. This is a **reference implementation**, not a library, and
+that shapes what changes make sense here.
 
-Before opening a PR, ask:
+## What this project is trying to be
 
-- Does this fix a sharp edge a stranger would hit?
-- Does it preserve the "5-minute clone-to-first-build" promise?
-- Does it generalize, or is it specific to your project?
-- For enhancements: does it pass the [SCOPE.md](SCOPE.md) test? (Stuff *around* the project — XcodeGen, fastlane, CI, signing, release tooling — is in scope. Stuff *inside* the project — networking libs, persistence, auth, UI framework opinions — is deliberately out of scope.)
+A small, readable, working demonstration that an iOS or macOS app can join a
+Tailscale network in userspace — no `NEPacketTunnelProvider`, no NetworkExtension
+entitlement, no VPN profile. The valuable parts are:
 
-If the answer to all is yes, open a PR. If you're unsure, open an issue first.
+1. `tailscale/build-tailscalekit.sh` + `validate-xcframework.sh` — the pipeline
+   that turns libtailscale into an xcframework Apple will actually accept.
+2. `app/Shared/Tailscale/` — roughly 250 lines of Swift showing the node
+   lifecycle and the workarounds that are not obvious.
 
-## Quickstart
+It is pinned to a known-good Tailscale version. Read it, copy from it, don't
+depend on it.
+
+## The scope test
+
+> Does this change make the Tailscale integration easier to understand, build,
+> or trust?
+
+- **Yes** → in scope. Please open an issue or PR.
+- **No** → probably out of scope, however good the idea is.
+
+**In scope:** fixes to the xcframework pipeline; new validator checks for things
+Apple rejects; clearer `WHY:` comments; corrections to `TAILSCALE.md`; making the
+demo work on a platform or OS version where it currently doesn't; reducing the
+Swift needed to integrate.
+
+**Out of scope:** turning this into a distributable Swift package; adding app
+features unrelated to Tailscale; networking/persistence/auth/analytics libraries;
+UI framework opinions. Those belong in *your* app, not in a reference.
+
+The release-engineering scaffolding (signing, fastlane, TestFlight, App Store) comes
+from [apple-shipkit](https://github.com/indiagrams/apple-shipkit). Improvements to
+it belong upstream there, not here — see "Relationship to apple-shipkit" in
+[AGENTS.md](AGENTS.md).
+
+## Before you open a PR
 
 ```bash
-# 1. Fork on GitHub, then clone your fork
-git clone https://github.com/<you>/apple-shipkit.git
-cd apple-shipkit
+# 1. Get the xcframework (see README "Adding this to an existing app")
+gh release download tailscalekit-v1.102.3 -p 'TailscaleKit.xcframework.zip' -D /tmp
+unzip -q /tmp/TailscaleKit.xcframework.zip -d vendor/
 
-# 2. One-time setup (brew bundle, lefthook install, xcodegen, bundle install)
-make bootstrap
-
-# 3. Create a topic branch
-git checkout -b fix/short-description
-
-# 4. Make your change
-
-# 5. Verify locally — must be green before pushing
+# 2. Generate + build + lint
+cd app && xcodegen generate && cd ..
 make check
-
-# 6. Push (lefthook also runs ci/local-check.sh --fast as a pre-push hook)
-git push -u origin fix/short-description
-
-# 7. Open a PR against main
-gh pr create
+make format-check
 ```
 
-`make check` is the floor. If it's red locally, the PR won't merge — branch
-protection enforces this for everyone, maintainers included
-([PRINCIPLES.md](docs/PRINCIPLES.md) #4). The pre-push hook runs
-`ci/local-check.sh --fast` automatically, which is the same iOS-device
-build CI runs on every PR — so by the time you push, you've already passed
-the primary signal.
+If you touched `app/macOS/*.entitlements`, also verify against a **signed** build —
+the App Sandbox is not enforced on unsigned builds, so an unsigned build can pass
+while the signed one fails to start. The command is in
+[TAILSCALE.md](TAILSCALE.md#macos-the-app-sandbox-needs-networkserver).
 
-## What every PR needs
+If you touched a dependency or target setting, change **both** `app/project.yml`
+(XcodeGen) and `app/Project.swift` (Tuist) — the CI matrix builds both and will
+fail on drift.
 
-1. **Six CI checks green.** Branch protection on `main` enforces this.
-   The required jobs are 3 XcodeGen + 3 Tuist parity:
-   - `app (iOS device)`              · `app (Tuist iOS device)`
-   - `app (iOS Simulator)`           · `app (Tuist iOS Simulator)`
-   - `app (macOS)`                   · `app (Tuist macOS)`
+## Conventions
 
-   These names are pinned in `.github/workflows/pr.yml` and mirrored in
-   `bin/setup-github.sh`. Renaming a job means updating both — see
-   [PRINCIPLES.md](docs/PRINCIPLES.md) #10 (semver applies to template
-   structure).
+- **Branches**: `feat/...`, `fix/...`, `docs/...`, `refactor/...`, `chore/...`, `test/...`
+- **Commits**: [Conventional Commits](https://www.conventionalcommits.org/). The
+  body should explain root cause, fix mechanism, and how you validated it.
+- **CHANGELOG.md**: add an entry under `[Unreleased]` for anything user-visible.
+- **PRs**: say what changed, why, and what you ran to verify. Tables beat prose.
+- **Merges**: squash.
 
-2. **A Test plan in the PR description.** Even one-line typo fixes. Even
-   docs-only changes. The point is the muscle memory — you confirm to
-   yourself that you actually verified the change before asking a reviewer
-   to. For docs-only changes, "rendered the file on github.com — looks
-   correct" is a valid Test plan.
+## Reporting a bug
 
-3. **Squash-merge only, linear history.** No merge commits. No rebase
-   merges. Repo settings enforce squash-merge. `git log` reads like a
-   sequence of features, not a tangle
-   ([PRINCIPLES.md](docs/PRINCIPLES.md) #3).
-
-4. **CHANGELOG entry in the same PR as the change.** `CHANGELOG.md`
-   doesn't exist yet — it lands with the v1.0.0 public release. Until
-   then, the convention is git-log-driven; once the file exists, this
-   rule applies per [PRINCIPLES.md](docs/PRINCIPLES.md) #9.
-
-## Cross-repo coordination: `ci/lib/`
-
-Files in `ci/lib/` (today: `ci/lib/resolve-dist-cert-sha.sh` and
-`ci/lib/SHA256SUMS`) are SHA-pinned. They are byte-identical with the
-same files in downstream consumer repos derived from this template.
-`ci/local-check.sh`'s `verify_helpers_in_sync` step verifies the
-`SHA256SUMS` match on every run; drift is a CI failure, not a warning
-([PRINCIPLES.md](docs/PRINCIPLES.md) #5).
-
-If your PR modifies anything under `ci/lib/`:
-
-1. Call it out clearly in the PR description.
-2. Regenerate the hashes:
-   ```bash
-   shasum -a 256 ci/lib/*.sh > ci/lib/SHA256SUMS
-   ```
-3. Expect the maintainer to coordinate the rollout — the same
-   byte-identical change must land in every downstream consumer repo
-   derived from this template in the same release cycle. This is why
-   `ci/lib/` changes are slower than other PRs. It's not a bottleneck
-   imposed for fun; it's the cost of keeping the shared helpers actually
-   shared.
-
-## Code of Conduct
-
-By participating in this project, you agree to abide by our
-[Code of Conduct](CODE_OF_CONDUCT.md). This project adopts the
-Contributor Covenant 2.1 verbatim — no edits, no custom carve-outs
-([PRINCIPLES.md](docs/PRINCIPLES.md) #18).
-
-## Style notes
-
-The full operating manual is [docs/PRINCIPLES.md](docs/PRINCIPLES.md)
-(24 rules). The ones a contributor will hit on day one:
-
-- **Every script has a "why" header comment** (rule 6) — explain the
-  constraint, the incident, or the gotcha that justified writing the
-  script. The *what* is in the code; the *why* belongs at the top.
-- **README answers what / why / how in the first 50 lines** (rule 7) —
-  beyond that is reference material. A reader should know if this
-  template is for them without scrolling.
-- **Non-obvious patterns get a "Why this exists" section** (rule 8) —
-  both in source comments AND in the README. If you remove the pattern,
-  you remove its explanation too.
-- **No secrets in any committed file, ever** (rule 13). `.env*`, `*.p8`,
-  `*.pem`, and `*.mobileprovision` are gitignored. If you're adding a
-  new secret-shaped file, add the pattern to `.gitignore` in the same
-  PR.
-
-## Discussing before opening a PR
-
-For larger changes — anything touching `ci/lib/`, the release pipeline,
-the renaming script (when it lands), or the public template "API"
-(directory layout, script names, Makefile targets) — open a [GitHub
-issue](https://github.com/indiagrams/embedded-tailscale-ios/issues) first.
-We'll discuss the shape before you spend time on the implementation.
-
-(Issue templates are coming in a near-term update; for now, free-form is fine.)
-
-## Response time
-
-Issues and PRs get a first response within ~7 days
-([PRINCIPLES.md](docs/PRINCIPLES.md) #23). That might be "looking at
-it", "let's iterate on the approach", or "this isn't the right fit,
-here's why" — acknowledgement, not resolution. We don't promise
-resolution timelines; we do promise we won't ghost you.
+Include the platform (iOS device / iOS Simulator / macOS), whether the build was
+signed, the `tailscale.com` version from `vendor/libtailscale/go.mod`, and the
+relevant `[TailscaleKit]` log lines. `tailscale_start` / `tailscale_up` return
+codes are especially useful — `res=-1` with no further output usually means the
+node never got far enough to log anything.

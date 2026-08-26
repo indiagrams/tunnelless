@@ -5,204 +5,154 @@
 
 ## What this project is
 
-This is a fork of [`apple-shipkit`](https://github.com/indiagrams/embedded-tailscale-ios) — release-engineering scaffolding for shipping iOS + macOS apps. The template handles signing, GitHub Actions CI for PRs, mint-fresh certificates per CI release, TestFlight upload, and App Store submission. **Your job is to build the actual app on top of this scaffolding.**
+A **reference implementation**: an iOS + macOS app that joins a Tailscale network
+in userspace by linking `tsnet` as a library, with no `NEPacketTunnelProvider`,
+no NetworkExtension entitlement, and no VPN profile. Traffic reaches peers
+through the SOCKS5 proxy tsnet exposes on loopback.
 
-The template is deliberately framework-agnostic. It doesn't pick a UI architecture (MVVM/MVC/Clean), networking stack, or persistence layer. Those choices live in the app code you write.
+It is **not a library and not a template**. It is pinned to a known-good Tailscale
+version and meant to be read and copied from, not depended on. The demo app is
+deliberately small; the valuable parts are the xcframework build pipeline and
+roughly 250 lines of Swift.
+
+The release-engineering scaffolding underneath (signing, CI, fastlane, TestFlight)
+comes from [apple-shipkit](https://github.com/indiagrams/apple-shipkit), which is
+this repo's upstream. See "Relationship to apple-shipkit" below.
+
+| Path | What |
+|---|---|
+| `app/Shared/Tailscale/TailscaleNodeManager.swift` | Node lifecycle. Every `WHY:` comment is a bug that cost real time — do not "clean them up". |
+| `app/Shared/Tailscale/WebAuthLogin.swift` | Interactive browser login. |
+| `app/Shared/ContentView.swift` | Demo UI: connect, show tailnet IP + SOCKS5 proxy, sign out. |
+| `tailscale/build-tailscalekit.sh` | Builds all three slices, injects privacy manifests, re-signs. |
+| `tailscale/validate-xcframework.sh` | Asserts the things Apple rejects for. Run before any upload. |
+| `tailscale/PrivacyInfo.xcprivacy` | The manifest injected into both iOS slices. |
+| `vendor/libtailscale` | Submodule, pinned to a known-good commit. |
+
+`TAILSCALE.md` is the deep reference — read it before touching anything under
+`app/Shared/Tailscale/` or `tailscale/`.
+
+## Getting the xcframework
+
+`vendor/TailscaleKit.xcframework` is **gitignored** (~94 MB). Nothing builds
+without it. Two ways to get it:
+
+```bash
+# A. Download the prebuilt release (what CI does, ~20 s)
+gh release download tailscalekit-v1.102.3 -p 'TailscaleKit.xcframework.zip' -D /tmp
+unzip -q /tmp/TailscaleKit.xcframework.zip -d vendor/
+
+# B. Build it (~5 min, needs Go + Xcode)
+git submodule update --init --recursive
+bash tailscale/build-tailscalekit.sh
+bash tailscale/validate-xcframework.sh
+```
+
+Then generate and build:
+
+```bash
+cd app && xcodegen generate && cd ..
+make check
+```
 
 ## Critical invariants (do NOT break)
 
-The fork ↔ upstream sync property is the most important architectural invariant. Breaking it forces the maintainer to choose between accepting upstream fixes and keeping local changes. These rules preserve it:
+### Tailscale-specific
 
-| Rule | Why | If you need to change behavior |
-|---|---|---|
-| Do **not** edit `fastlane/Fastfile` | Template-owned; upstream changes will conflict on every `git pull upstream main` | Add to `fastlane/Fastfile.local` (see "Custom fastlane logic" below) |
-| Do **not** hardcode `APP_NAME` / `BUNDLE_ID` / ASC URLs in workflows or scripts | They resolve from `.bootstrap.env` (Fastfile) or repo `vars.*` (workflows) | Set the env / repo variable |
-| Do **not** edit files under `bin/`, `ci/`, `.github/workflows/`, `Makefile` | Template-owned | Override via env, or open an upstream issue at `indiagrams/embedded-tailscale-ios` |
-| Do **not** commit secrets | `.bootstrap.env` and `.p8` files are gitignored | Commit `.bootstrap.env.example` only; real values live in GitHub Secrets / `~/.config/secrets/` |
-| Do **not** sed-substitute `TailnetDemo` literals | The template uses env-driven resolution everywhere it matters | Run `bin/rename.sh MyApp com.example.myapp "My App" --email=you@example.com` once at fork creation; afterward, the value is set in `.bootstrap.env` |
+These are load-bearing. Each corresponds to a failure that has actually happened;
+`TAILSCALE.md` has the full account.
 
-## Where your code goes
+| Rule | Why |
+|---|---|
+| Never hardcode the `tailscale.com` version | It must be read from `vendor/libtailscale/go.mod`. A hardcoded `v1.96.4` once meant both patch steps took their "not found" branch and an xcframework shipped **without its crash fix**, silently. |
+| Never `sed -i` against the Go module cache | The cache is read-only; `sed -i` fails with `Permission denied` while the build continues. Rewrite with `python3`, then assert the patched symbol exists. |
+| Never hand-roll `xcodebuild` for the xcframework | Use `build-tailscalekit.sh`, then `validate-xcframework.sh`. Bypassing them shipped an xcframework missing the crash guard and all privacy manifests. |
+| Never trust a release tag's date | `v1.96.4` was tagged four days *after* the PR it lacks was merged — the release branch was cut earlier. `curl` the source at the tag and grep. |
+| Never pipe a build to `tail` | `cmd \| tail -35` reports *tail's* exit code, so a failed build looks like exit 0. Redirect to a file, capture `$?`, then grep. |
+| Cache `loopback()` before calling `up()` | `up()` is a blocking C call that holds the actor for the whole login flow. |
+| Weak-capture the node in the up-task | A strong capture keeps the Go server alive past a reset, holding the state-directory lock. |
+| Sign-out must delete the state directory | Otherwise tsnet reuses persisted auth and never re-logs `AuthURL is`. |
 
-| What | Where | Notes |
-|---|---|---|
-| Cross-platform app code | `app/Shared/` | SwiftUI by default. Both iOS + macOS targets compile this. |
-| iOS-only resources | `app/iOS/` | Entitlements, info.plist additions, iOS-only assets |
-| macOS-only resources | `app/macOS/` | Same shape, macOS variant |
-| Unit tests | `app/Tests/` (iOS), `app/MacOSTests/` (macOS) | XCTest |
-| UI tests / screenshot tests | `app/UITests/`, `app/MacOSUITests/` | UI tests can't `@testable import` the app binary |
-| Accessibility identifiers | `app/Shared/AccessibilityIdentifiers.swift` | Compiled into BOTH app and UI test targets via project manifest `sources:` |
-| App icon (1024 PNG) | `app/iOS/Assets.xcassets/AppIcon.appiconset/icon_1024.png` | Run `make icons` to regenerate macOS .icns from the same source |
-| App Store metadata | `fastlane/metadata/en-US/*.txt` | Localizable; en-US ships by default |
-| App Store screenshots | `fastlane/screenshots/en-US/*.png` | Regenerated by `make screenshots`; not tracked in git |
-| Custom fastlane lanes | `fastlane/Fastfile.local` | Copy from `fastlane/Fastfile.local.example` |
-| App entitlements | `app/iOS/TailnetDemo.entitlements`, `app/macOS/TailnetDemo.entitlements` | After fork rename, basename becomes `<APP_NAME>.entitlements` |
+### Both project manifests must stay in sync
+
+`app/project.yml` (XcodeGen) and `app/Project.swift` (Tuist) are 1:1 equivalents,
+and the CI matrix builds both. When you touch a dependency or target setting,
+change it in **both**. A missing `.xcframework(...)` in the Tuist manifest
+compiles as `no such module 'TailscaleKit'`, which reads like a missing binary
+rather than manifest drift.
+
+### Template-owned paths
+
+`bin/`, `ci/`, `.github/workflows/`, `Makefile`, and `fastlane/Fastfile` come from
+apple-shipkit. Editing them causes conflicts on every upstream sync. Prefer
+`fastlane/Fastfile.local` (fork-owned; the template imports it at EOF) and repo
+variables over edits. The one accepted exception is documented under
+"Accepted divergence" below.
+
+Do **not** commit secrets. `.bootstrap.env` and `.p8` files are gitignored; real
+values live in GitHub Secrets and `~/.config/secrets/`.
+
+## Where code goes
+
+| What | Where |
+|---|---|
+| Cross-platform app code | `app/Shared/` |
+| Tailscale integration | `app/Shared/Tailscale/` |
+| iOS-only resources | `app/iOS/` |
+| macOS-only resources | `app/macOS/` |
+| Unit tests | `app/Tests/` (iOS), `app/MacOSTests/` (macOS) |
+| UI / screenshot tests | `app/UITests/`, `app/MacOSUITests/` |
+| Accessibility identifiers | `app/Shared/AccessibilityIdentifiers.swift` |
+| xcframework build tooling | `tailscale/` — deliberately **not** `ci/`, which is template-owned |
 
 ## Daily workflow
 
-| Task | Command | What it does |
-|---|---|---|
-| First-time check | `make doctor` | 17-step read-only pipeline. Surfaces every prerequisite + advisory. Run this when something feels wrong. |
-| One-time setup | `make bootstrap` | Installs brew deps, bundler, project-generator (xcodegen or tuist), git hook. Idempotent. |
-| Local build (no signing) | `make check` | Same signal CI runs on PR. Use this in your edit-build-test loop. |
-| Run unit + UI tests | `make verify` (after `make ship`), or invoke `xcodebuild test` directly during dev | Don't write custom test scripts — the project generators wire schemes correctly. |
-| Ship to TestFlight | `make ship` | Builds + signs + uploads to TestFlight. ~5 min. Auto-versioning: `v<MARKETING>+<BUILD>`. |
-| Submit for App Review | `make submit` | Stages (default) or auto-submits the latest TestFlight build. Reads `SUBMIT_FOR_REVIEW` from `.bootstrap.env`. |
-| Take App Store screenshots | `make screenshots` | iOS + macOS captures into `fastlane/screenshots/en-US/`. Survives quarantined Xcode. |
-| The full forker journey | `make all` | `doctor → bootstrap-fork → ship → verify`. Use on first ship from a fresh fork. |
-| Adopt an existing live App Store app | `make adopt` | Pulls existing ASC metadata + screenshots into the fork before first ship. **Only for forks of apps already on the App Store** — skip if greenfield. See `docs/ADOPTING-EXISTING-APP.md`. |
-
-## Adopting an existing live App Store app
-
-If your fork represents an app that's **already shipping on the App Store** (not greenfield), you **MUST** run `make adopt` once after `.bootstrap.env` is filled and BEFORE `make submit`. Otherwise, `make submit` uploads the template's placeholder metadata (description, keywords, screenshots) to ASC, **overwriting the real live App Store listing** within minutes — visible to all users browsing the App Store.
-
-`make adopt` is a single command that pulls existing ASC state down to the local tree:
-
-```bash
-make adopt                        # downloads metadata + screenshots from ASC
-make adopt SKIP_SCREENSHOTS=true  # metadata only, ~5 sec
-make adopt SKIP_METADATA=true     # screenshots only
-FORCE=true make adopt             # overwrite even with uncommitted fastlane/ changes
-```
-
-After adoption, `git diff fastlane/` shows the real App Store metadata. Commit it. Then `make ship` joins existing build history and `make submit` ships your real metadata.
-
-Detection cue: `make doctor`'s `App Store metadata text files` warning surfaces the `make adopt` hint when BUNDLE_ID is non-placeholder AND ASC API creds are configured.
-
-Full walkthrough: `docs/ADOPTING-EXISTING-APP.md`.
-
-## When adding a new feature
-
-1. Add code under `app/Shared/` (cross-platform) or `app/iOS/` / `app/macOS/` (platform-specific).
-2. Add unit tests under `app/Tests/` / `app/MacOSTests/`.
-3. If the feature has a UI element you'll test from XCUITest, add an identifier to `app/Shared/AccessibilityIdentifiers.swift` and attach it via `.accessibilityIdentifier(AccessibilityIdentifiers.foo)` on the **leaf** view (Text/Button/Image/TextField/Toggle — SwiftUI containers like VStack don't surface in XCUITest queries).
-4. If the feature requires a new Apple capability (Push, iCloud, App Groups, Sign in with Apple, Wallet, CloudKit):
-   - Enable it at [developer.apple.com](https://developer.apple.com) → Identifiers → your Bundle ID → check the capability
-   - Add the entitlement to `app/iOS/TailnetDemo.entitlements` and/or `app/macOS/TailnetDemo.entitlements`
-   - Re-ship via `make ship` — the next cert mint will include the capability
-5. If you add a new locale, add `fastlane/metadata/<lang>/` and `fastlane/screenshots/<lang>/` directories with the same shape as `en-US/`.
-
-## Custom fastlane logic (Slack/Crashlytics/Firebase/etc.)
-
-When you want to extend the release pipeline — post a Slack message after `make ship` succeeds, upload dSYMs to Crashlytics, distribute via Firebase App Distribution, bump an internal ticket on App Review submission — do **NOT** edit `fastlane/Fastfile`. The template owns it; your edits will conflict on every upstream sync.
-
-Instead:
-
-```bash
-cp fastlane/Fastfile.local.example fastlane/Fastfile.local
-# edit Fastfile.local — uncomment the patterns you want
-git add fastlane/Fastfile.local
-git commit -m "chore(fastlane): add Slack release notification"
-```
-
-`Fastfile.local` is fork-owned. The template imports it at EOF if present:
-
-```ruby
-# At the end of fastlane/Fastfile (template code, do not edit):
-_local = File.join(File.dirname(__FILE__), "Fastfile.local")
-import _local if File.exist?(_local)
-```
-
-Hook conventions:
-
-- The template **claims `before_all`** (ASC API key setup + `setup_ci` in CI mode). Do **NOT** define `before_all` in `Fastfile.local` — fastlane's `before_all` is last-write-wins, and overriding it would silently drop the template's ASC bootstrap. To run setup before a specific lane, use `override_lane`.
-- `after_all` and `error` are **free for forks** — multiple imported files' hooks compose in import order.
-- Template helpers `APP_NAME`, `APP_IDENTIFIER`, `IOS_SCHEME`, `MACOS_SCHEME`, `asc_api_key`, `pilot_with_retry`, `changelog_text`, `extract_changelog_section`, `parse_release_tag`, `cert_options_for_type` are all reachable from `Fastfile.local`. Use them.
-- Wrap third-party API calls (Slack webhook, Linear API, etc.) in `rescue StandardError` + `UI.important`. A successful App Store ship must not become a fastlane failure exit because a Slack 404'd.
-
-See `docs/MAINTAINING-A-FORK.md` "I want to add custom lanes" for the full pattern table and seven copy-pasteable examples.
-
-## Custom fastlane actions
-
-Drop any `fastlane/actions/<name>.rb` file. Fastlane auto-loads it at startup; the action is callable from any lane (including `Fastfile.local`). Skeleton in `Fastfile.local.example` (PATTERN 6).
-
-## Configuration via `.bootstrap.env`
-
-The single source of truth for fork-specific identity + config:
-
-| Field | Used by |
+| Task | Command |
 |---|---|
-| `APP_NAME` | Fastfile (project + scheme + IPA/PKG names), workflows (`vars.APP_NAME`) |
-| `BUNDLE_ID` | Fastfile (app identifier), workflows (`vars.BUNDLE_ID`) |
-| `FASTLANE_TEAM_ID` | Fastlane (Apple Developer team) |
-| `ASC_API_KEY_*` | Fastlane (App Store Connect auth) |
-| `RELEASE_MODE` | `local` (sign on your Mac) or `ci` (mint-fresh in GitHub Actions) |
-| `PLATFORMS` | `ios`, `macos`, or `ios,macos` (default) |
-| `SUBMIT_FOR_REVIEW` | `make submit` behavior (stage vs auto-submit) |
-| Many more | `docs/BOOTSTRAP.md` and `.bootstrap.env.example` |
+| Local build, no signing (same signal CI runs) | `make check` |
+| Auto-fix formatting | `make format` |
+| Lint without writing | `make format-check` |
+| Regenerate the Xcode project | `cd app && xcodegen generate` |
+| Validate the xcframework | `bash tailscale/validate-xcframework.sh` |
 
-Reading order in code:
-1. Workflow env (`vars.*` / `secrets.*` from CI; shell exports / `.envrc` for local)
-2. `.bootstrap.env` (per-fork)
-3. Fail-loud placeholders (`TailnetDemo`, `com.indiagram.tailnetdemo`, `+10000000000`, `example.com`)
+Test selectors: leaf SwiftUI elements only (Text/Button/Image/TextField/Toggle/Picker).
+`VStack`/`HStack`/`ZStack` without `.accessibilityElement(children: .contain)` do
+not surface in XCUITest queries.
 
 ## Commit + PR conventions
 
 - **Branch naming**: `feat/...`, `fix/...`, `docs/...`, `refactor/...`, `chore/...`, `test/...`
-- **Commit messages**: Conventional commits (`feat(scope): short summary`). Body explains root cause, fix mechanism, validation. Multi-paragraph commits are normal and expected.
-- **CHANGELOG.md**: Append to `[Unreleased]` block under `### Added` / `### Fixed` / `### Changed` on every user-visible change. Format follows [Keep a Changelog](https://keepachangelog.com/).
-- **PR descriptions**: What changed, why, validation. Tables work better than prose. Mirror PRs to a fork should reference the upstream PR.
-- **Branch protection**: `main` requires PRs (no direct push), 1 review, squash-only merge. CI must be green.
+- **Commit messages**: Conventional commits (`feat(scope): short summary`). The body
+  explains root cause, fix mechanism, and validation. Multi-paragraph is normal.
+- **CHANGELOG.md**: append to `[Unreleased]` under `### Added` / `### Fixed` / `### Changed`
+  on every user-visible change.
+- **PR descriptions**: what changed, why, validation. Tables beat prose.
+- **Merges**: squash.
 
-## Testing instructions
+## Relationship to apple-shipkit
 
-- **Unit tests**: `make check` runs an unsigned iOS device build with the test plan. From the project root: `bundle exec fastlane scan --workspace app/TailnetDemo.xcworkspace --scheme TailnetDemo-iOS` for a direct invocation. Don't write custom test runners — the project generator wires schemes correctly.
-- **UI tests / screenshot tests**: `make screenshots` invokes them via `fastlane snapshot` (iOS) or `xcodebuild test` (macOS, then `extract-mac-screenshots.sh` pulls PNGs from xcresult).
-- **CI parity locally**: `ci/local-check.sh --fast` — same script CI's `pr.yml` runs. Use this when CI fails and you can't reproduce locally.
-- **Test selectors**: leaf SwiftUI elements only (Text/Button/Image/TextField/Toggle/Picker). VStack/HStack/ZStack without `.accessibilityElement(children: .contain)` don't surface in XCUITest queries.
-
-## When in doubt
-
-| Question | Read |
-|---|---|
-| How does the release pipeline work end-to-end? | `README.md` "How releases work under the hood" |
-| First-time shipping a new fork | `docs/GETTING-STARTED.md` |
-| What does `.bootstrap.env` field X mean? | `docs/BOOTSTRAP.md` or `.bootstrap.env.example` |
-| Apple-side prerequisites (cert quotas, ASC app record, etc.) | `docs/APPLE-PREREQS.md` |
-| Known shipping pitfalls + workarounds (16+ catalogued) | `docs/CONTINUOUS-VALIDATION.md` |
-| Day-2 fork operations (renewals, capabilities, retire) | `docs/MAINTAINING-A-FORK.md` |
-| Custom fastlane lane patterns (7 examples) | `fastlane/Fastfile.local.example` + `docs/MAINTAINING-A-FORK.md` |
-| Screenshot test conventions | `docs/SCREENSHOTS.md` |
-| Tuist vs XcodeGen migration | `docs/MIGRATING-TO-TUIST.md` |
-| Ship without GitHub Actions (local only) | `docs/NO-CI.md` |
-| Rollback a partial bootstrap / bad ship | `docs/ROLLBACK.md` |
-| Design rationale for the template | `docs/PRINCIPLES.md` |
-
-## Antipatterns (these break the fork)
-
-| Antipattern | What breaks | Do instead |
-|---|---|---|
-| `sed -i 's/TailnetDemo/MyApp/' fastlane/Fastfile` | Fastfile is byte-equivalent across template + forks via env resolution; sed creates divergence that conflicts every upstream sync | Set `APP_NAME=MyApp` in `.bootstrap.env` |
-| Editing `.github/workflows/*.yml` to point at a specific app | Workflows resolve repo state via `vars.APP_NAME` / `vars.BUNDLE_ID` | `gh variable set APP_NAME --body MyApp` |
-| Committing `.bootstrap.env` | Contains paths to local secrets, possibly real values | Already gitignored; commit `.bootstrap.env.example` if you add a new field |
-| Adding new lanes to `fastlane/Fastfile` | Upstream sync will conflict every time the template touches the file | Use `fastlane/Fastfile.local` |
-| Defining `before_all` in `Fastfile.local` | Fastlane's `before_all` is last-write-wins; will silently drop the template's ASC API key setup, breaking every signed upload | Use `override_lane` for the specific lane needing setup |
-| Writing custom ship scripts (`./my-ship.sh`) | `make ship` already handles versioning, cert minting, signing, upload, tagging, "What to Test" annotation, ASC version-bump, export-compliance | Hook into the release flow via `Fastfile.local` (`override_lane :release` or new lane that calls `release` + extras) |
-| Hardcoding scheme/project paths in `xcodebuild` calls | Project file is named `<APP_NAME>.xcodeproj`; hardcoding breaks rename | Read scheme/project from generator output: `xcodegen` writes to `app/<APP_NAME>.xcodeproj`; `tuist generate` produces the same |
-| Adding tests that call live external APIs | UI tests with live network are the #1 flake source | Mock at the network boundary (URLProtocol or a thin abstraction). `docs/SCREENSHOTS.md` walks through this. |
-| Putting App Store screenshots into `en-US/Mac/` subdir | `deliver` only expands `iMessage` / `appleTV` subdirs; macOS screenshots in `Mac/` get silently dropped | Put macOS PNGs directly in `fastlane/screenshots/en-US/` — `deliver` infers device class from PNG dimensions |
-| Storing ASC API key `.p8` inside the repo | Will leak in any `git filter-repo --replace-text` audit + violates Apple's terms | Keep in `~/.config/secrets/` (local) and `secrets.ASC_API_KEY_P8_BASE64` GitHub secret (CI) |
-
-## Updating from upstream apple-shipkit
-
-When `indiagrams/embedded-tailscale-ios` ships a new version, sync via:
+This repo is a fork of [`indiagrams/apple-shipkit`](https://github.com/indiagrams/apple-shipkit).
+To pull in upstream template fixes:
 
 ```bash
-git remote add upstream https://github.com/indiagrams/embedded-tailscale-ios.git  # one-time
+git remote add upstream https://github.com/indiagrams/apple-shipkit.git  # one-time
 git fetch upstream
-git merge upstream/main                                                   # or rebase, your call
+git merge upstream/main
 ```
 
-If you've followed the invariants above, expect **zero merge conflicts**:
-- Fastfile is byte-equivalent across template + your fork (env-driven)
-- Workflow files are byte-equivalent (vars-driven)
-- Your custom logic lives in `Fastfile.local`, which upstream never touches
-- Your app code lives under `app/`, which the template never touches (except `app/Shared/TailnetDemo.swift` if you haven't renamed; rename handles that)
+`bin/rename.sh` rewrote `indiagrams/apple-shipkit` to this repo's slug when the
+fork was created. That is correct for a fork that becomes its own template, but
+wrong here — this project credits apple-shipkit as upstream. References meaning
+"the upstream template" have been restored; references meaning "this repository"
+(such as where to file an issue) point here.
 
-If you DO see conflicts, you broke an invariant. The conflict points to which one.
+For the scaffolding's own documentation — bootstrapping a fork, the release
+pipeline, TestFlight, App Store submission, Tuist migration — see
+[apple-shipkit](https://github.com/indiagrams/apple-shipkit). Those docs were
+removed from this repo rather than maintained in duplicate; a visitor here is
+looking for Tailscale, not release engineering.
 
-## Your fork's conventions
-
-> Forks should append fork-specific notes below this line. Examples: architecture choice (MVVM/Clean/etc.), preferred dependencies, internal API endpoints, your CHANGELOG style if different, your team's PR review process.
+## Fork conventions
 
 ### Accepted divergence: the TailscaleKit fetch step in `pr.yml`
 
@@ -210,26 +160,25 @@ If you DO see conflicts, you broke an invariant. The conflict points to which on
 one step, `fetch TailscaleKit.xcframework`, plus `submodules: true` on the
 `app` job's checkout.
 
-**Why it can't live anywhere else.** `pr.yml` has no fork-owned seam: the
-`app` job goes straight from "regenerate Xcode project" to "build iOS
-device", and there is no `local-check.sh` hook or equivalent extension point
-to attach to. `vendor/TailscaleKit.xcframework` is gitignored (94 MB), so
-without a fetch step every app job fails at
-`There is no XCFramework found`. Nothing in `Fastfile.local` runs during a
-PR check.
+**Why it can't live anywhere else.** `pr.yml` has no fork-owned seam: the `app`
+job goes straight from "regenerate Xcode project" to "build iOS device", with no
+`local-check.sh` hook to attach to, and nothing in `Fastfile.local` runs during a
+PR check. Without a fetch step, every app job fails at
+`There is no XCFramework found`.
 
 **Cost.** `git merge upstream/main` will conflict on `pr.yml` whenever
-apple-shipkit touches the `app` job. The step is deliberately self-contained
-and marked `FORK-OWNED STEP` in-file so the resolution is always "keep both".
+apple-shipkit touches the `app` job. The step is self-contained and marked
+`FORK-OWNED STEP` in-file, so the resolution is always "keep both".
 
-**Invariants it does respect:** no hardcoded `APP_NAME`/`BUNDLE_ID`, no
-hardcoded Tailscale version (derived from `vendor/libtailscale/go.mod`), and
-the release slug is overridable via the `TSKIT_RELEASE_REPO` repo variable.
+**Invariants it respects:** no hardcoded `APP_NAME`/`BUNDLE_ID`, no hardcoded
+Tailscale version (derived from `vendor/libtailscale/go.mod`), and the release
+slug is overridable via the `TSKIT_RELEASE_REPO` repo variable.
 
-### Both project manifests must declare the xcframework
+### Stale pointers in template-owned files
 
-`app/project.yml` (XcodeGen) and `app/Project.swift` (Tuist) are 1:1
-equivalents and the CI matrix builds both. When you touch the framework
-dependency, change it in **both** — a missing `.xcframework(...)` in the
-Tuist manifest compiles as `no such module 'TailscaleKit'`, which reads like
-a missing binary rather than manifest drift.
+Some template-owned scripts mention docs that were removed here (for example
+`bin/lib/bootstrap.rb` refers to `docs/BOOTSTRAP.md`). These are message strings
+and comments with no functional effect. They are deliberately left unedited:
+rewriting them would deepen divergence from upstream for no behavioural gain.
+Follow such pointers to
+[apple-shipkit](https://github.com/indiagrams/apple-shipkit) instead.

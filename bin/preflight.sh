@@ -154,7 +154,7 @@ cat <<'EOF'
 
     2. Quickstart from a fresh fork:
 
-         gh repo create my-app --template indiagrams/embedded-tailscale-ios --public --clone && cd my-app
+         gh repo create my-app --template indiagrams/apple-shipkit --public --clone && cd my-app
          make bootstrap            # one-time dev-env setup (brew + ruby gems + xcodegen + git hooks)
          make init                 # scaffolds .bootstrap.env (auto-fills GH_ORG/GH_APP_REPO from origin)
          $EDITOR .bootstrap.env    # fill APP_NAME, BUNDLE_ID, Apple credentials, RELEASE_MODE
