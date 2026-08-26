@@ -65,11 +65,21 @@ and there's no published binary, which is why this repo builds one.
 **Option A — add it as a SwiftPM dependency** (easiest)
 
 ```swift
-.package(url: "https://github.com/indiagrams/embedded-tailscale-ios", branch: "main")
+.package(url: "https://github.com/indiagrams/embedded-tailscale-ios", from: "0.1.0")
 ```
 
-(No semver tags are published yet, so pin the branch — or a revision, if you
-want the pin to be immutable.)
+**Versioning.** The package version is independent of the Tailscale version it
+vends — `0.1.0` does not mean tsnet 0.1.0. It is `0.x` deliberately: the
+packaging is young and may change. Each tag's release notes state the
+`tailscale.com` version it carries, and `tailscale/TAILSCALE_VERSION` is the
+source of truth on `main`.
+
+Two separate things share this repo's tags, which is worth knowing:
+
+| Tag | What it is |
+| --- | --- |
+| `0.1.0`, `0.2.0`, … | SwiftPM package versions — what `from:` resolves |
+| `tailscalekit-v1.102.3` | the xcframework binary release the package downloads |
 
 The package vends nothing but the prebuilt `TailscaleKit.xcframework`, pinned
 by SHA-256 — a moved or rewritten asset fails resolution rather than silently

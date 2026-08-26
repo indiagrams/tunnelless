@@ -66,6 +66,27 @@ NetworkExtension entitlement, and no VPN profile. Verified on a physical iPhone
 - Release `tailscalekit-v1.102.3` — a prebuilt, validated xcframework. Upstream
   libtailscale ships no prebuilt binary.
 - `-autoconnect` launch argument for the demo app.
+- `Package.swift` — distributes the xcframework as a SwiftPM `.binaryTarget`,
+  pinned by SHA-256 so a moved or rewritten release asset fails resolution
+  instead of silently swapping the binary.
+- `tailscale/verify-package-manifest.sh` + `swiftpm-manifest-check.yml` — assert
+  the pinned URL names the release for `tailscale/TAILSCALE_VERSION` and that
+  the checksum matches what is actually published. Without this the manifest
+  could go stale on a bump and SwiftPM would keep resolving the old binary
+  while every other check stayed green.
+
+**Versioning.** Package versions are independent of the Tailscale version they
+vend: this tag carries `tailscale.com v1.102.3`, but `0.2.0` may carry a
+different one — or the same one with only packaging changes. `0.x` is
+deliberate; the packaging is new and may change shape. Two tag series live in
+this repo: `0.x` are SwiftPM package versions (what `from:` resolves), and
+`tailscalekit-vX.Y.Z` are xcframework binary releases (what the package
+downloads).
+
+The inherited apple-shipkit tags (`v1.0.0`–`v1.9.0`) were deleted from the
+working clone before tagging; they were never pushed. They point at
+apple-shipkit trees with no `Package.swift`, so publishing them would have made
+`from:` resolve to an unrelated project.
 
 ### Upstream contributions
 
