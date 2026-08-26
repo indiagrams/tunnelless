@@ -58,6 +58,11 @@ final class AppStoreScreenshotTests: XCTestCase {
         // bypassing the system appearance API entirely.
         let scheme = (appearance == .dark) ? "dark" : "light"
         app.launchArguments.append(contentsOf: ["-UITestColorScheme", scheme])
+        // Present the connected state and a populated tailnet. A Simulator has no
+        // Tailscale account, so without this the capture photographs an idle
+        // "not connected" screen and never reaches the peer list. Same views and the
+        // same row rendering — only the source of the data differs. See DemoData.
+        app.launchArguments.append(contentsOf: ["-UITestDemoData", "-autoconnect"])
         app.launch()
 
         // Wait for the title text by accessibility identifier (set in
@@ -70,11 +75,25 @@ final class AppStoreScreenshotTests: XCTestCase {
             "Title didn't appear within 10s — check app.launch() succeeded and the identifier is attached"
         )
 
-        snapshot("01-home-\(label)")
+        // Ordered deliberately: deliver sorts by filename and most people only
+        // look at the first screenshot. The tailnet is what distinguishes this
+        // app from a connection indicator, so it leads.
+        snapshot("02-home-\(label)")
 
-        // Add more screens here as the app grows. Each snapshot() call
-        // writes one PNG named <device>-NN-<test>-<image>.png into
-        // fastlane/screenshots/en-US/.
+        // Screen 2: the tailnet. This is the screen that distinguishes the app from a
+        // connection indicator, so it is the one worth showing in the listing.
+        let browse = app.buttons[AccessibilityIdentifiers.peersButton]
+        XCTAssertTrue(
+            browse.waitForExistence(timeout: 10),
+            "Browse tailnet button didn't appear — is the app in the connected state?"
+        )
+        browse.tap()
+
+        XCTAssertTrue(
+            app.staticTexts[AccessibilityIdentifiers.peerCount].waitForExistence(timeout: 10),
+            "Peer list header didn't appear after tapping Browse"
+        )
+        snapshot("01-tailnet-\(label)")
     }
 
     func testLightMode() {

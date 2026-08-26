@@ -17,6 +17,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **App Store screenshot capture that reaches the screens worth showing.** A
+  Simulator has no Tailscale account, so capture previously photographed an idle
+  "not connected" screen and never opened the peer list at all. `DemoData`,
+  gated on the `-UITestDemoData` launch argument, presents the connected state
+  and a representative tailnet through the *same* views and row rendering — only
+  the source of the rows differs. Produces 8 screenshots: iPhone 6.7" and iPad
+  12.9", home and tailnet, light and dark, at Apple's exact slot dimensions
+  (1290×2796 and 2048×2732).
+- Memberwise initializer on `TailnetPeer`, for fixtures and demo data.
+
+### Changed
+
+- The tailnet screen is now screenshot **01** and home is **02**. `deliver`
+  orders by filename and most people only look at the first one; the peer list
+  is what distinguishes this app from a connection indicator.
+
+### Added
+
 - **Shortcuts, Siri, and Spotlight support** via App Intents: Connect to Tailnet,
   Get Tailnet Status, Count Online Devices, and Browse Tailnet. The status
   intents answer without launching the app; the two that need the node open it,

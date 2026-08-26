@@ -173,6 +173,16 @@ final class PeerListModel {
     }
 
     func reload() async {
+        // Screenshot capture has no Tailscale account, so there is no status to read.
+        // Same view, same row rendering — only the source of the rows differs.
+        if DemoData.isEnabled {
+            peers = DemoData.peers
+            tailnetName = DemoData.tailnetName
+            health = nil
+            errorText = nil
+            return
+        }
+
         guard let loopback = await manager.cachedLoopback else {
             errorText = "Node has not started yet."
             return
