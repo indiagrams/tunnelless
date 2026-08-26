@@ -49,6 +49,13 @@ let iosInfoPlist: [String: Plist.Value] = [
         "UIInterfaceOrientationLandscapeRight",
     ]),
     "ITSAppUsesNonExemptEncryption": false,
+    // iOS 14+ (and macOS 15+) gate local-network access behind this string. tsnet
+    // does LAN peer discovery, so Apple's prompt needs a reason to show. NOT a fix
+    // for relayed peers — a control run without this key still reports route=direct
+    // once traffic flows. See app/project.yml.
+    "NSLocalNetworkUsageDescription": "Tunnelless connects directly to devices on your " +
+        "Tailscale network instead of relaying through Tailscale's servers.",
+    "NSAppTransportSecurity": ["NSAllowsLocalNetworking": true],
 ]
 
 let iosTarget = Target.target(
@@ -96,6 +103,13 @@ let macInfoPlist: [String: Plist.Value] = [
     // The post-build script below installs the hand-rolled .icns instead.
     "CFBundleIconFile": "AppIcon",
     "ITSAppUsesNonExemptEncryption": false,
+    // iOS 14+ (and macOS 15+) gate local-network access behind this string. tsnet
+    // does LAN peer discovery, so Apple's prompt needs a reason to show. NOT a fix
+    // for relayed peers — a control run without this key still reports route=direct
+    // once traffic flows. See app/project.yml.
+    "NSLocalNetworkUsageDescription": "Tunnelless connects directly to devices on your " +
+        "Tailscale network instead of relaying through Tailscale's servers.",
+    "NSAppTransportSecurity": ["NSAllowsLocalNetworking": true],
 ]
 
 // Overwrites actool's broken 4-size .icns with the hand-rolled 10-size

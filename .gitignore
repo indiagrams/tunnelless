@@ -88,3 +88,9 @@ vendor/libtailscale/swift/build/
 # PROJECT.md carry working notes, relationship context, and candid assessments
 # that are not for publication.
 .planning/
+
+# App Review demo credentials. `deliver` uploads these from disk, but this repo
+# is public — a committed demo_user/demo_password is a working login to the
+# tailnet, published. Keep them local; they are supplied per-machine.
+fastlane/metadata/review_information/demo_user.txt
+fastlane/metadata/review_information/demo_password.txt

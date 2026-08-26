@@ -17,6 +17,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `NSLocalNetworkUsageDescription` and `NSAppTransportSecurity.NSAllowsLocalNetworking`
+  in both manifests. iOS 14+ and macOS 15+ gate local-network access behind the
+  usage string, and tsnet does LAN peer discovery. **Not** a fix for relayed
+  peers: a control run with the key removed still reports `route=direct` once
+  traffic flows. The earlier `relay sfo` readings were a measurement artifact —
+  status was sampled immediately after `up()`, before any traffic, and a direct
+  path is negotiated during traffic.
+- Real App Review notes, adapted from PrivateClaw's review-tested copy. Leads
+  with "NO SEPARATE TAILSCALE APP REQUIRED", which pre-empts the reviewer
+  assumption that the Tailscale app must be installed alongside.
+- Real `copyright.txt` and App Review contact details.
+
+### Changed
+
+- `.gitignore` now covers `fastlane/metadata/review_information/demo_user.txt`
+  and `demo_password.txt`. `deliver` uploads those from disk, but that directory
+  is tracked and this repo is public — a committed demo account would be a
+  working login to the tailnet, published. The credentials belong in
+  `.bootstrap.env` as `APP_REVIEW_DEMO_USER` / `APP_REVIEW_DEMO_PASSWORD`.
+
+### Added
+
 - **Tailnet peer dashboard.** The app now enumerates the tailnet it belongs to:
   peers with online state, tailnet IP, MagicDNS name, whether the path is direct
   or via a DERP relay, exit-node availability, ACL tags, and expired keys — plus

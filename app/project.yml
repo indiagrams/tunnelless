@@ -54,6 +54,20 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         ITSAppUsesNonExemptEncryption: false
+        # iOS 14+ (and macOS 15+) gate local-network access behind this string.
+        # tsnet does LAN peer discovery, so the string is required for Apple's
+        # prompt to carry a meaningful reason; PrivateClaw ships the same key for
+        # the same stack.
+        #
+        # NOT a fix for relayed peers. An earlier version of this comment claimed
+        # it was, on the strength of every peer reporting "relay sfo". That was a
+        # measurement artifact: status was read immediately after up(), before any
+        # traffic. A direct path is negotiated when traffic flows. Control run with
+        # the key REMOVED still reports route=direct after a single request, so this
+        # key does not change path selection.
+        NSLocalNetworkUsageDescription: Tunnelless connects directly to devices on your Tailscale network instead of relaying through Tailscale's servers.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
@@ -96,6 +110,14 @@ targets:
         # postCompileScript installs the hand-rolled .icns instead.
         CFBundleIconFile: AppIcon
         ITSAppUsesNonExemptEncryption: false
+        # WHY: iOS 14+ (and macOS 15+) gate local-network access behind this string.
+        # tsnet needs it to discover peers on the LAN and open a DIRECT path; without
+        # it every peer falls back to a DERP relay — slower, and routed through
+        # Tailscale's infrastructure instead of peer-to-peer. Measured before adding
+        # it: every peer reported "relay sfo", including a Mac on the same LAN.
+        NSLocalNetworkUsageDescription: Tunnelless connects directly to devices on your Tailscale network instead of relaying through Tailscale's servers.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
