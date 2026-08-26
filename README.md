@@ -56,6 +56,12 @@ You need two things: the framework, and about 250 lines of Swift.
 
 ### 1. Get `TailscaleKit.xcframework`
 
+TailscaleKit is Tailscale's Swift wrapper around `tsnet`. It isn't a separate
+project or a SwiftPM package — it lives as
+[`swift/TailscaleKit`](https://github.com/tailscale/libtailscale/tree/main/swift/TailscaleKit)
+inside [`tailscale/libtailscale`](https://github.com/tailscale/libtailscale),
+and there's no published binary, which is why this repo builds one.
+
 **Option A — download a prebuilt release** (fastest)
 
 Grab `TailscaleKit.xcframework.zip` from
@@ -243,5 +249,10 @@ ported over to iOS."* That is, more or less, what this repo is.
 **Reference implementation, not a supported library.** Pinned to a known-good
 Tailscale version. Read it, copy from it, don't take a dependency on it.
 
-This repo is MIT. `TailscaleKit` and `libtailscale` are BSD-3-Clause,
-© Tailscale & AUTHORS — that licence ships inside every release archive.
+This repo is MIT.
+
+[`tailscale/libtailscale`](https://github.com/tailscale/libtailscale) is
+BSD-3-Clause, © Tailscale & AUTHORS. TailscaleKit is the Swift layer within it
+rather than a separate project, so it carries the same licence — and the
+binaries in every release here are built from that source. A copy of the
+licence ships inside each release archive.
