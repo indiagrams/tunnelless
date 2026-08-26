@@ -255,7 +255,7 @@ final class DemoModel {
                 let peers = (json["Peer"] as? [String: Any])?.count ?? 0
                 probeResult("localapi: BackendState=\(json["BackendState"] ?? "?") peers=\(peers)")
             } else {
-                probeResult("localapi: body head — \(String(decoding: data.prefix(200), as: UTF8.self))")
+                probeResult("localapi: body head — \(String(bytes: data.prefix(200), encoding: .utf8) ?? "<non-utf8>")")
             }
         } catch {
             let ms = Int(Date().timeIntervalSince(started) * 1000)
