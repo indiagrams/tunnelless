@@ -110,13 +110,31 @@ the validator exists.
 
 ## Upstream
 
-- [#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
-  `os.Executable` fallback. Merged, shipped in **v1.98.0**.
-- [#20985](https://github.com/tailscale/tailscale/pull/20985) — `Close()`
-  nil-deref when `Start()` failed early. Surfaces through TailscaleKit as
-  `EXC_BAD_ACCESS`, masking the real startup error. Open.
-- [#13937](https://github.com/tailscale/tailscale/issues/13937) — first-class
-  Swift support. Open.
+Contributed from this project:
+
+- [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
+  `os.Executable` fallback. **Merged**, shipped in v1.98.0.
+- [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) —
+  `Close()` nil-deref when `Start()` failed early. Surfaces through
+  TailscaleKit as `EXC_BAD_ACCESS`, masking the real startup error.
+  **Open, approved.**
+- [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) — makes
+  the built xcframework distributable: privacy manifests (ITMS-91053), a macOS
+  slice, and a validator for the failures that only appear at upload. **Open.**
+  If it lands, most of `build-tailscalekit.sh` becomes redundant.
+
+Background, both **closed as completed**:
+
+- [tailscale#13937](https://github.com/tailscale/tailscale/issues/13937) —
+  first-class Swift support. Closed 2025-05-05; TailscaleKit is the result.
+- [tailscale#15410](https://github.com/tailscale/tailscale/issues/15410) —
+  libtailscale on iDevices vs. Apple sandboxing. Closed 2025-03-25. Worth
+  reading: it anticipated the `os.Executable` problem #19052 later fixed, and
+  ends with *"The HelloTailscale sample should get ported over to iOS."*
+
+Closed-as-completed does not mean finished in practice — the `network.server`
+sandbox requirement and the `LocalAPIClient` device hang documented above were
+both found after those issues were closed.
 
 While #20985 is unmerged, `build-tailscalekit.sh` patches the fix into the Go
 module cache and **hard-fails if the patch doesn't apply** — an xcframework
