@@ -10,6 +10,7 @@
 // No packet tunnel, no NetworkExtension entitlement, no VPN permission prompt.
 
 import SwiftUI
+import TailscaleKit
 
 #if canImport(UIKit)
     import UIKit
@@ -158,6 +159,7 @@ final class DemoModel {
                 authURL = nil
                 await runProbeIfRequested()
                 await runLocalAPIProbeIfRequested()
+                await runLocalAPIClientProbeIfRequested()
             }
         } catch {
             errorText = String(describing: error)
@@ -258,6 +260,49 @@ final class DemoModel {
         } catch {
             let ms = Int(Date().timeIntervalSince(started) * 1000)
             probeResult("localapi: RESULT FAILED in \(ms)ms — \(String(describing: error))")
+        }
+    }
+
+    /// Launch with `-localapiclient` to call the real `LocalAPIClient.backendStatus()`.
+    ///
+    /// This is the before/after for the upstream fix. Against a stock TailscaleKit this
+    /// never returns — the call is routed through the SOCKS5 proxy at the loopback address
+    /// that proxy is bound to. Against a patched build it should return like any other
+    /// HTTP call. The 20s race exists because the failure mode is an indefinite hang, not
+    /// an error: without a bound, "broken" and "slow" look identical.
+    private func runLocalAPIClientProbeIfRequested() async {
+        guard ProcessInfo.processInfo.arguments.contains("-localapiclient") else { return }
+        guard let node = await manager.currentNode() else {
+            probeResult("localapiclient: no node")
+            return
+        }
+
+        probeResult("localapiclient: calling LocalAPIClient.backendStatus()")
+        let started = Date()
+        let result = await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                do {
+                    let client = LocalAPIClient(localNode: node, logger: nil)
+                    let status = try await client.backendStatus()
+                    return "OK BackendState=\(status.BackendState) peers=\(status.Peer?.count ?? 0)"
+                } catch {
+                    return "THREW \(String(describing: error))"
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(20))
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+
+        let ms = Int(Date().timeIntervalSince(started) * 1000)
+        if let result {
+            probeResult("localapiclient: RESULT \(result) in \(ms)ms")
+        } else {
+            probeResult("localapiclient: RESULT HUNG — no return after \(ms)ms")
         }
     }
 

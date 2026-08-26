@@ -205,6 +205,14 @@ actor TailscaleNodeManager {
         pipe.fileHandleForReading.bytes.lines
     }
 
+    /// The live node, for callers that need to construct a `LocalAPIClient`.
+    ///
+    /// Safe only once `up()` has returned: `up()` is a blocking C call that holds this
+    /// actor for the whole login flow, so any access before then queues behind it.
+    func currentNode() -> TailscaleNode? {
+        node
+    }
+
     func currentLogPipe() -> Pipe? {
         logPipe
     }
