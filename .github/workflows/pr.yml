@@ -1,0 +1,292 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+# Least-privilege token. The PR jobs only need to read the repo;
+# nothing here writes back to the repo, posts comments, or pushes tags.
+permissions:
+  contents: read
+
+# Cancel an older run for the same PR / branch when a new push lands.
+concurrency:
+  group: pr-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Reads .bootstrap.env's PLATFORMS field (defaults to 'ios,macos' if unset)
+  # and emits a JSON matrix consumed by the `app:` job below. Building the
+  # matrix dynamically (rather than statically + per-cell `if:`) is the only
+  # way to actually skip runners for iOS-only / macOS-only forks — a static
+  # matrix would still spin up macos-15 cells just to no-op them, defeating
+  # the runner-minutes savings PLATFORMS-filtering is supposed to provide.
+  config:
+    name: read .bootstrap.env
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: matrix
+        run: |
+          set -euo pipefail
+          # Default PLATFORMS=ios,macos if not present in .bootstrap.env
+          # (e.g. the upstream apple-shipkit template itself, which has no
+          # .bootstrap.env on main).
+          if [ -f .bootstrap.env ]; then
+            platforms=$(awk -F= '/^PLATFORMS[[:space:]]*=/ { gsub(/^[[:space:]"'\'']+|[[:space:]"'\'']+$/, "", $2); print $2; exit }' .bootstrap.env)
+          else
+            platforms=""
+          fi
+          [ -z "$platforms" ] && platforms="ios,macos"
+          echo "Resolved PLATFORMS=$platforms"
+
+          do_ios=false; do_macos=false
+          [[ ",$platforms," == *,ios,* ]]   && do_ios=true
+          [[ ",$platforms," == *,macos,* ]] && do_macos=true
+
+          # Detect which generator manifests are committed. Single-generator
+          # forks (the typical end state — pick xcodegen OR tuist via
+          # bin/switch-to-{xcodegen,tuist}.sh) delete the other manifest, so
+          # there's nothing for the absent generator's cells to operate on.
+          # apple-shipkit + smoketest keep both committed → matrix runs both.
+          generators=()
+          [ -f app/project.yml ]    && generators+=("xcodegen")
+          [ -f app/Project.swift ]  && generators+=("tuist")
+          # Safety: if neither manifest is present (corrupt / mid-rename
+          # state), fall back to the template default so cells fail loudly
+          # at `xcodegen|tuist generate` instead of silently producing an
+          # empty matrix that skips all build coverage.
+          if [ ${#generators[@]} -eq 0 ]; then
+            echo "WARN: neither app/project.yml nor app/Project.swift found; defaulting to both generators (cells will fail at generate step)"
+            generators=(xcodegen tuist)
+          fi
+          echo "Resolved GENERATORS=${generators[*]}"
+
+          # Order matters: the resulting check names land in the order rows
+          # are appended, and existing branch-protection rules + reviewer
+          # muscle memory expect xcodegen-trio-then-tuist-trio (when both
+          # are present).
+          rows=()
+          for gen in "${generators[@]}"; do
+            prefix=""
+            [ "$gen" = "tuist" ] && prefix="Tuist "
+            if [ "$do_ios" = "true" ]; then
+              rows+=("{\"generator\":\"$gen\",\"platform\":\"ios-device\",\"display_name\":\"${prefix}iOS device\"}")
+              rows+=("{\"generator\":\"$gen\",\"platform\":\"ios-sim\",\"display_name\":\"${prefix}iOS Simulator\"}")
+            fi
+            if [ "$do_macos" = "true" ]; then
+              rows+=("{\"generator\":\"$gen\",\"platform\":\"macos\",\"display_name\":\"${prefix}macOS\"}")
+            fi
+          done
+          joined=$(IFS=,; echo "${rows[*]}")
+          matrix="{\"include\":[$joined]}"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Resolved matrix:"
+          echo "$matrix" | jq .
+
+  # Lints all Swift sources against .swiftlint.yml at the repo root.
+  # `--strict` treats warnings as errors so the signal is binary.
+  # Excluded paths (Tuist Derived, fastlane SnapshotHelper, build outputs)
+  # are configured in .swiftlint.yml itself, not here.
+  swiftlint:
+    name: swiftlint
+    runs-on: macos-15
+    timeout-minutes: 5
+    env:
+      # Skip auto-update (saves ~30s) and post-install cleanup (saves ~5s).
+      # The runner image is rebuilt frequently enough that we don't need
+      # the freshest formula DB to install xcodegen / xcbeautify / swiftlint.
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: install swiftlint
+        run: brew install swiftlint
+      - name: lint
+        run: swiftlint --strict --reporter github-actions-logging
+
+  # SwiftFormat lint mode — fails on any diff. Companion to swiftlint:
+  # swiftlint flags style violations, swiftformat auto-fixes most of them.
+  # Excluded paths (Tuist Derived, fastlane SnapshotHelper, app/Project.swift
+  # Tuist DSL) are configured in .swiftformat at the repo root.
+  #
+  # Forkers: `make format` auto-fixes locally; this job runs the same
+  # formatter in --lint mode (no writes; exits non-zero on diff).
+  swiftformat:
+    name: swiftformat
+    runs-on: macos-15
+    timeout-minutes: 5
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: install swiftformat
+        run: brew install swiftformat
+      - name: format-check
+        run: swiftformat --lint app/
+
+  # Single matrix job covering both generators × all platforms. Replaces 6
+  # near-identical jobs (~80% duplicated YAML) with one parameterized one.
+  # Check-name stability (branch-protection-required) is preserved by
+  # interpolating `matrix.display_name` into `name:` — GitHub uses the
+  # resolved value as the check name when the matrix vars appear in the
+  # name string, so e.g. `app (iOS device)` stays exactly that.
+  app:
+    needs: config
+    name: "app (${{ matrix.display_name }})"
+    runs-on: macos-15
+    # Cell-level safety net at 60 min. Test steps (which run user code)
+    # have no step-level timeout — they fall through to this cap, giving
+    # forks plenty of room for real test suites that legitimately take
+    # 20-30 min. The infrastructure-only steps below (build, pre-boot,
+    # picker) have their own tighter timeouts because they don't run
+    # user code and shouldn't ever take long.
+    #
+    # Forks with a test suite that legitimately exceeds 60 min should
+    # bump this cap; if a fork's tests are flaky and hang past 60 min,
+    # this is a more honest signal than GitHub's 6-hour default ceiling.
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.config.outputs.matrix) }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: install xcbeautify + generator
+        run: |
+          brew install xcbeautify
+          if [ "${{ matrix.generator }}" = "tuist" ]; then
+            # Refresh the cask DB first. The runner image bakes in a Homebrew
+            # snapshot that can lag the cask, and tuist < 4.199.0 ships a broken
+            # dyld linkage (aborts loading @rpath/libswiftCompatibilitySpan.dylib;
+            # fixed upstream in 4.199.0 via tuist#11229). With HOMEBREW_NO_AUTO_UPDATE=1
+            # (job env) a plain install pins CI to the stale cached version (4.198.1
+            # on the 20260610 image), so refresh explicitly to pull >= 4.199.0.
+            brew update
+            brew install --cask tuist
+          else
+            brew install xcodegen
+          fi
+
+      # Tuist forks live with their app/Project.swift manifest checked in
+      # alongside app/project.yml. switch-to-tuist.sh stages the right one
+      # (deletes project.yml, keeps Project.swift) so the subsequent
+      # `tuist generate` produces the same ${APP_NAME}.xcodeproj layout the
+      # xcodegen path produces from project.yml.
+      - name: switch fork to Tuist
+        if: matrix.generator == 'tuist'
+        run: bin/switch-to-tuist.sh --force
+
+      - name: regenerate Xcode project
+        working-directory: app
+        run: |
+          if [ "${{ matrix.generator }}" = "tuist" ]; then
+            tuist generate --no-open
+          else
+            xcodegen generate
+          fi
+
+      - name: pick + pre-boot iOS Simulator
+        if: matrix.platform == 'ios-sim'
+        id: sim
+        timeout-minutes: 6   # boot + bootstatus -d 300 (5m wait); fail fast on stuck booter
+        run: |
+          set -euo pipefail
+
+          # Shut down any simulators left running from prior work on this
+          # runner (GH-hosted runners can have stale boot state across
+          # workflow runs that share image caches). Safe no-op if none booted.
+          xcrun simctl shutdown all || true
+
+          # Pick a UDID. The macos-15 runner pool has variable simulator
+          # availability — hardcoding `name=iPhone 16 Plus,OS=latest`
+          # produces flakes when that specific runtime/device pair isn't
+          # installed on the assigned runner. xcrun simctl gives the
+          # authoritative list per-runner.
+          UDID=$(xcrun simctl list devices available -j \
+            | jq -r '.devices | to_entries[]
+                | select(.key | contains("iOS"))
+                | .value[]
+                | select(.isAvailable and (.name | contains("iPhone")))
+                | .udid' \
+            | head -1)
+          [ -n "$UDID" ] || { echo "::error::no iPhone simulator available on this runner"; exit 1; }
+          echo "Using simulator UDID=$UDID"
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+          # Pre-boot. Without this, `xcodebuild test` boots the simulator
+          # as part of its prepare phase — that boot can hang 10-25 min on
+          # cold/contended runners with no progress signal. Booting here
+          # (with a hard 5m bootstatus timeout) means a stuck booter fails
+          # within minutes, surfacing a re-runnable red check instead of
+          # idling for 30 min.
+          #
+          # bootstatus -b -d 300: -b = wait until fully booted (not just
+          # the process is running), -d 300 = give up after 300s.
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b -d 300
+          echo "Simulator pre-booted and responsive."
+
+      - name: build iOS device (unsigned)
+        if: matrix.platform == 'ios-device'
+        timeout-minutes: 5   # typical ~40s; 5m absorbs cold caches
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-iOS" \
+            -configuration Debug \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcbeautify --renderer github-actions
+
+      - name: test iOS Simulator (unsigned)
+        if: matrix.platform == 'ios-sim'
+        run: |
+          set -o pipefail
+          # `xcodebuild test` runs the scheme's Test action, which the
+          # generator manifest (app/project.yml or app/Project.swift) wires
+          # to <APP_NAME>UITests + <APP_NAME>Tests (these are renamed at fork creation
+          # by bin/rename.sh — the literal names in apple-shipkit are HelloAppUITests
+          # + HelloAppTests). Test action requires a concrete simulator destination
+          # (generic/* doesn't work).
+          xcodebuild test \
+            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-iOS" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcbeautify --renderer github-actions
+
+      - name: test macOS (unsigned)
+        if: matrix.platform == 'macos'
+        run: |
+          set -o pipefail
+          # macOS test destination is bare `platform=macOS` — `xcodebuild
+          # test` doesn't accept `generic/platform=macOS`.
+          xcodebuild test \
+            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-macOS" \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcbeautify --renderer github-actions

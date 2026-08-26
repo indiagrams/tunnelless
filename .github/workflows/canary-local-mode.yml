@@ -1,0 +1,634 @@
+name: canary-local-mode
+
+# Continuous validation of the LOCAL-MODE shipping path (RELEASE_MODE=local).
+#
+# Distinct from release.yml's CI-mode canary (which exercises match-based cert
+# sourcing). Local mode is what first-time shippers use:
+#
+#   - fastlane sigh mints App Store profiles via API key (no match)
+#   - signing certs come from login.keychain-db directly (auto-minted by
+#     `make bootstrap-fork` or `make mint-local-certs`)
+#   - β cert SHA-1 pinning via DeveloperCertificates[0] in the .mobileprovision
+#   - bash-3.2 array safety in ci/local-release-check.sh
+#
+# Why this exists: pre-v1.5, local mode was 0% covered by automation —
+# only validated via manual cold-fork tests at release time. The v1.4 cycle
+# stabilized the path (#115/#117/#119/#121/#123), but the next regression
+# would surface weeks late. v1.5 keeps it stable continuously.
+#
+# ─── Architecture: revoke-after-run loop in the SAME Apple team ───────────────
+#
+# Each run:
+#   1. Pre-step revokes any orphan cert ids from a prior failed run
+#      (cache-tracked; usually 0).
+#   2. Mints 3 fresh certs (DIST + DEV + MAC_INSTALLER_DISTRIBUTION) into the
+#      runner's login keychain. Captures their ASC ids to a tracking file
+#      (one id per line). Persists the file to the cache after EACH mint, so
+#      partial-failure scenarios (e.g. mint #2 of 3 crashes) leave a tracking
+#      file the next run's pre-step can clean up.
+#   3. Runs `fastlane release` in local mode (no match, sigh-based profiles,
+#      cert-SHA1-pinned signing).
+#   4. Verifies TestFlight ingestion via bin/verify-testflight.rb.
+#   5. Post-step (if: always()) revokes the 3 just-minted ids — runs even on
+#      ship failure. Then writes an empty tracking file.
+#   6. Saves the empty tracking file to cache → next run's pre-step is a no-op.
+#
+# Net cost per run: 0 certs added, 0 lost. User's existing shipping certs
+# never touched. Apple's API doesn't rate-limit mint+revoke cycles.
+#
+# ─── Empirical Apple cert quotas (verified 2026-05-08, team A1B2C3D4E5) ───────
+#
+#   DISTRIBUTION                  cap = 3 / team
+#   DEVELOPMENT                   cap ≥ 5 / team  (didn't probe to boundary)
+#   MAC_INSTALLER_DISTRIBUTION    cap = 2 / team
+#
+# At-cap mint without --force returns HTTP 409 (no destructive behavior).
+# At-cap mint with --force revokes the OLDEST cert by creation date — could
+# wipe out a production cert. fastlane cert defaults to no --force (safe).
+#
+# This canary requires ≥ 1 cycling slot in DIST + MAC_INSTALLER. v1.5's
+# one-time setup revoked one spare cert per type to dedicate a slot
+# (77D7Y2X3TM + G327ZNQ7L7 revoked 2026-05-08; see CHANGELOG v1.5).
+#
+# ─── Required GH Secrets (same as release.yml; no new ones) ───────────────────
+#
+#   ASC_API_KEY_ID                — App Store Connect API key id
+#   ASC_API_KEY_ISSUER_ID         — ASC API key issuer UUID
+#   ASC_API_KEY_P8_BASE64         — base64 of the .p8 file contents
+#   FASTLANE_TEAM_ID              — Apple Developer team ID
+#   KEYCHAIN_PASSWORD             — for unlocking login.keychain-db on the runner
+#
+# Optional: DISCORD_CANARY_WEBHOOK for Discord failure notification.
+#
+# ─── Failure modes & recovery ─────────────────────────────────────────────────
+#
+# Post-step doesn't run (runner crash mid-mint) → cache holds orphan ids; next
+# run's pre-step revokes them (worst case: 1 week stale).
+# Cache evicted (>7 days idle, never on a weekly cron) → orphans linger; manual
+# revoke via developer.apple.com/account/resources/certificates (30 sec).
+# User-driven mint contends during canary's 12-min window → fixed cron Saturdays
+# 07:00 UTC keeps the window predictable (separate from CI canary on Sundays).
+#
+# ─── Generator matrix: xcodegen × tuist ───────────────────────────────────────
+#
+# Mirrors canary-trigger.yml's CI-mode coverage. Both project generators are
+# exercised against the same Apple identity so generator-specific shipping
+# regressions surface here:
+#   - Tuist 4.x default settings drift (CFBundleVersion handling, signing
+#     settings inheritance, scheme/test-action quirks at archive time)
+#   - bin/switch-to-{xcodegen,tuist}.sh regressions (these scripts edit
+#     Brewfile + Makefile + ci/* + pr.yml; could break local-mode entry
+#     points). Each cell exercises whichever switch script applies.
+#
+# max-parallel: 1 is mandatory. Concurrent matrix cells would each try to
+# mint 3 certs (DIST + DEV + MAC_INSTALLER) at once, hit Apple's 3-DIST and
+# 2-MAC_INSTALLER caps, and the second cell would fail with HTTP 409. The
+# orphan-tracking cache passes empty state between sequential cells: cell 1
+# finishes mint→ship→revoke→save-empty; cell 2 restores empty and starts
+# fresh.
+#
+# fail-fast: false so a tuist regression doesn't suppress the xcodegen cell
+# (and vice versa) — useful when one generator breaks and you want to know
+# if the other does too.
+#
+# Total runtime: ~24 min weekly (12 min × 2 cells, sequential).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Mint + ship + verify + revoke, but skip TestFlight upload'
+        required: false
+        type: boolean
+        default: false
+
+# Workflow-level env: bring fork identity from repo variables (see release.yml
+# header for the rationale + the two required `gh variable set` invocations).
+# Same pattern; same fail-loud behavior if unset.
+env:
+  APP_NAME:  ${{ vars.APP_NAME }}
+  BUNDLE_ID: ${{ vars.BUNDLE_ID }}
+
+permissions:
+  contents: read
+  actions: read   # required for actions/cache to read prior cache entries
+
+# Serialize canary runs. cancel-in-progress: false → if a manual dispatch
+# lands during a cron run, the dispatch waits rather than aborting mid-mint
+# (a cancelled mint can leave orphans even with the always()-post-step,
+# because cancellation kills the runner before always() steps complete).
+concurrency:
+  group: canary-local-mode
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    name: Local-mode shipping path canary (${{ matrix.generator }})
+    # Dispatched by apple-shipkit's canary-trigger.yml on the weekly Sat 07:00
+    # UTC cron, sequenced after the two CI-mode ships. Also runs on manual
+    # workflow_dispatch for ad-hoc validation. No `schedule:` trigger on this
+    # file itself — the weekly cron lives entirely in canary-trigger.yml on
+    # apple-shipkit so both repos' canary-local-mode.yml stay byte-equivalent
+    # without per-fork divergence.
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        generator: [xcodegen, tuist]
+
+    env:
+      # Force local mode regardless of the repo's .bootstrap.env value. The
+      # template ships with RELEASE_MODE=local default; the smoketest
+      # currently uses ci. This canary tests local-mode plumbing on whichever
+      # repo it runs against.
+      RELEASE_MODE:                  local
+      ASC_API_KEY_ID:                ${{ secrets.ASC_API_KEY_ID }}
+      ASC_API_KEY_ISSUER_ID:         ${{ secrets.ASC_API_KEY_ISSUER_ID }}
+      ASC_API_KEY_P8_BASE64:         ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+      FASTLANE_TEAM_ID:              ${{ secrets.FASTLANE_TEAM_ID }}
+      KEYCHAIN_PASSWORD:             ${{ secrets.KEYCHAIN_PASSWORD }}
+      FASTLANE_HIDE_CHANGELOG:       '1'
+      FASTLANE_SKIP_UPDATE_CHECK:    '1'
+      CANARY_CERT_TYPES:             apple_distribution,apple_development,mac_installer_distribution
+      # ORPHAN_IDS_FILE goes inside ${{ github.workspace }} so hashFiles() can
+      # see it — hashFiles is documented as workspace-relative-only. The dot-
+      # prefix keeps it visually unobtrusive in workspace listings; the runner
+      # is destroyed after each run, so no commit risk.
+      ORPHAN_IDS_FILE:               ${{ github.workspace }}/.canary-orphan-ids.txt
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # (Setup paths step removed — ORPHAN_IDS_FILE is now declared at job-level
+      # env, which can use ${{ github.workspace }} but not ${{ runner.temp }}.)
+
+      - name: Verify required secrets are set
+        # Fail fast with an actionable error rather than letting fastlane
+        # die 5 minutes in with "ASC_API_KEY_ID env var unset". Lets a fork
+        # opt-in cleanly (uncomment cron + configure secrets, in either
+        # order — workflow runs to completion only when both are done).
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -z "${ASC_API_KEY_ID}"        ] && missing+=("ASC_API_KEY_ID")
+          [ -z "${ASC_API_KEY_ISSUER_ID}" ] && missing+=("ASC_API_KEY_ISSUER_ID")
+          [ -z "${ASC_API_KEY_P8_BASE64}" ] && missing+=("ASC_API_KEY_P8_BASE64")
+          [ -z "${FASTLANE_TEAM_ID}"      ] && missing+=("FASTLANE_TEAM_ID")
+          [ -z "${KEYCHAIN_PASSWORD}"     ] && missing+=("KEYCHAIN_PASSWORD")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Required GH Secret(s) not set on this repo: ${missing[*]}"
+            echo "Configure them at:"
+            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "See the workflow header comment for details."
+            exit 1
+          fi
+
+      - name: Select Xcode 26+ for iOS 26 SDK requirement
+        # Apple began enforcing iOS 26 SDK minimum for ASC uploads in 2026.
+        # macos-15 runner default is currently Xcode 16.4 (iOS 18.5 SDK) —
+        # too old. Pick the highest-numbered Xcode_26*.app on the runner.
+        # See: docs/CONTINUOUS-VALIDATION.md G8.
+        run: |
+          set -euo pipefail
+          XCODE_APP=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XCODE_APP" ]; then
+            echo "::error::No Xcode 26+ found on runner. Available:" >&2
+            ls -d /Applications/Xcode*.app 2>/dev/null >&2 || true
+            exit 1
+          fi
+          echo "Selecting $XCODE_APP"
+          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
+          xcodebuild -version
+
+      - name: Set up Ruby + bundler cache
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+
+      - name: Switch workspace to ${{ matrix.generator }} (if needed)
+        # Mirrors release.yml's "Apply generator override" step. Each matrix
+        # cell mutates the workspace to its generator BEFORE make bootstrap
+        # runs (which would brew-install whatever the Brewfile says — the
+        # switch scripts edit Brewfile, so they must run first).
+        #
+        # Idempotent: if the repo's main is already in the cell's generator
+        # shape, the script is a no-op.
+        env:
+          REQUESTED_GENERATOR: ${{ matrix.generator }}
+        run: |
+          set -euo pipefail
+          case "$REQUESTED_GENERATOR" in
+            xcodegen)
+              if [ -f app/project.yml ]; then
+                echo "Repo is already in xcodegen shape (app/project.yml present); no-op."
+              else
+                if [ -x ./bin/switch-to-xcodegen.sh ]; then
+                  # bin/switch-to-xcodegen.sh's preflight requires xcodegen on PATH.
+                  # make bootstrap (next step) would install via Brewfile, but
+                  # that runs AFTER this. Install eagerly; brew is idempotent.
+                  echo "Installing xcodegen (required by switch-to-xcodegen.sh preflight)"
+                  brew install xcodegen
+                  echo "Switching workspace to xcodegen via bin/switch-to-xcodegen.sh"
+                  ./bin/switch-to-xcodegen.sh
+                else
+                  echo "::error::generator=xcodegen requested but repo is in tuist shape" \
+                    "and bin/switch-to-xcodegen.sh is not available on this ref."
+                  exit 1
+                fi
+              fi
+              ;;
+            tuist)
+              if [ -f app/project.yml ]; then
+                # Symmetric: tuist preflight needs tuist on PATH. brew is idempotent.
+                echo "Installing tuist (required by switch-to-tuist.sh preflight)"
+                # `brew update` first: GH runner images bake in a stale Homebrew
+                # snapshot, and a plain cask install pulls the cached tuist
+                # (4.198.1 on the 20260610 image) which aborts at `tuist generate`
+                # with a missing @rpath/libswiftCompatibilitySpan.dylib (fixed
+                # upstream in tuist 4.199.0 / tuist#11229). Refresh to pull >= 4.199.0.
+                brew update
+                brew install --cask tuist
+                echo "Switching workspace to tuist via bin/switch-to-tuist.sh"
+                ./bin/switch-to-tuist.sh
+              else
+                echo "Repo is already in tuist shape (no app/project.yml); no-op."
+              fi
+              ;;
+            *)
+              echo "::error::Invalid generator='$REQUESTED_GENERATOR'. Must be xcodegen or tuist."
+              exit 1
+              ;;
+          esac
+
+      - name: Bootstrap toolchain (generator + deps via Homebrew)
+        run: make bootstrap
+
+      - name: Pin brew Ruby on PATH for subsequent steps
+        # See release.yml's identical step. apple-shipkit#190's absolute-path
+        # `_BUNDLE = /opt/homebrew/opt/ruby@3.3/bin/bundle` Makefile change
+        # builds C extensions against brew Ruby, but setup-ruby (above) adds
+        # the toolcache Ruby to PATH first, so subsequent `bundle exec` calls
+        # crash with `LoadError: linked to incompatible
+        # /opt/homebrew/Cellar/ruby@3.3/3.3.11/lib/libruby.3.3.dylib`.
+        # Prepending brew Ruby's bin to GITHUB_PATH makes every later step
+        # use the same Ruby that built the extensions.
+        run: echo "/opt/homebrew/opt/ruby@3.3/bin" >> "$GITHUB_PATH"
+
+      - name: Verify ASC agreements are in effect
+        # Preflight (sibling of canary-trigger.yml's PAT preflight, #248): probe
+        # App Store Connect before cert mint / build / upload. Apple gates the
+        # whole ASC API behind an in-effect agreement; when one lapses this
+        # fails fast with an actionable runbook instead of surfacing deep in
+        # bootstrap_asc / mint / pilot. Uses job-level ASC_API_KEY_* env.
+        run: bundle exec ruby bin/verify-asc-agreements.rb
+
+      - name: Pre-install Apple WWDR intermediate certs
+        # See release.yml's identical step (G4). fastlane match's auto-install
+        # path can hang for 5+ min on GH Actions runners. We pre-install via
+        # curl + security add-trusted-cert. Local-mode canary uses sigh (not
+        # match), but sigh + cert + codesign all need a valid WWDR chain too.
+        run: |
+          curl -fsSL --retry 3 -o /tmp/AppleWWDRCAG6.cer \
+            https://www.apple.com/certificateauthority/AppleWWDRCAG6.cer
+          sudo security add-trusted-cert -d -r trustRoot \
+            -k /Library/Keychains/System.keychain \
+            /tmp/AppleWWDRCAG6.cer
+
+      - name: Restore orphan-ids tracking cache
+        # Restores the file written by the previous run's post-step. Empty
+        # file = no orphans (the normal case). Non-empty = some prior run's
+        # post-revoke step couldn't fully clean up; this run's pre-step does.
+        #
+        # Unique key per run forces actions/cache/save to land below.
+        # restore-keys finds the latest matching prefix (most recent prior
+        # run's saved state). Cache eviction is 7-day idle; weekly cron
+        # refreshes TTL on every restore, so persistence is indefinite as
+        # long as runs keep happening at least weekly.
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: cache-restore
+        with:
+          path: ${{ env.ORPHAN_IDS_FILE }}
+          key: canary-orphan-ids-v1-${{ github.run_id }}
+          restore-keys: |
+            canary-orphan-ids-v1-
+
+      - name: Pre-step — revoke any orphan ids from prior runs
+        # Idempotent. Silent on already-gone ids (the revoke_certs lane
+        # treats not-found-in-team as "already revoked, OK"). Most weeks
+        # this is a no-op (empty file). Non-empty file means a prior run's
+        # post-step didn't fully clean up — this is the recovery path.
+        run: |
+          set -euo pipefail
+          if [ ! -f "${ORPHAN_IDS_FILE}" ]; then
+            echo "No prior tracking file (cache miss or first run); nothing to revoke."
+            exit 0
+          fi
+          ids=$(grep -v '^[[:space:]]*$' "${ORPHAN_IDS_FILE}" 2>/dev/null | paste -sd, - || true)
+          if [ -z "${ids}" ]; then
+            echo "Tracking file is empty; no orphans to revoke."
+            exit 0
+          fi
+          echo "Found orphan ids from prior run(s):"
+          cat "${ORPHAN_IDS_FILE}"
+          bundle exec fastlane revoke_certs ids:"${ids}"
+
+      - name: Set up canary keychain (controlled, with partition-list ACL)
+        # Why a controlled keychain instead of login.keychain: GH Actions runners
+        # don't have a GUI, so codesign's "Always Allow" prompt for cert private
+        # keys never gets answered → xcodebuild archive hangs forever waiting
+        # for permission. Real local-mode users hit this once and click through;
+        # CI never can.
+        #
+        # Solution: create a fresh keychain we own (so we know its password),
+        # mint canary certs into it, then immediately set the partition-list
+        # to allow apple-tool / apple / codesign access without prompting.
+        # This faithfully reproduces a working post-first-run-prompt user
+        # keychain in a non-interactive environment.
+        #
+        # The rest of the local-mode pipeline still runs unchanged (no match,
+        # sigh-based profiles, β cert SHA-1 pinning, ExportOptions plist
+        # patching, bash-3.2 array safety) — the only deviation from a real
+        # local-mode user is *which* keychain holds the cert, not *how* the
+        # cert is used downstream.
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="${RUNNER_TEMP}/canary-local-mode.keychain-db"
+          # Use a deterministic-ish password (canary-only, never persisted).
+          # Runner is destroyed after the job, so secret strength is moot.
+          CANARY_KEYCHAIN_PWD="canary-${{ github.run_id }}"
+
+          # Clean up any stale keychain from a prior failed run on the same
+          # workspace (rare but possible). Best-effort.
+          security delete-keychain "${KEYCHAIN_PATH}" 2>/dev/null || true
+
+          security create-keychain -p "${CANARY_KEYCHAIN_PWD}" "${KEYCHAIN_PATH}"
+          security set-keychain-settings -lut 21600 "${KEYCHAIN_PATH}"
+          security unlock-keychain -p "${CANARY_KEYCHAIN_PWD}" "${KEYCHAIN_PATH}"
+
+          # Add to user keychain search list AS THE PRIMARY/DEFAULT so codesign,
+          # sigh, and xcodebuild find certs imported here.
+          security list-keychains -d user -s "${KEYCHAIN_PATH}" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "${KEYCHAIN_PATH}"
+
+          # Export to subsequent steps.
+          echo "CANARY_KEYCHAIN_PATH=${KEYCHAIN_PATH}" >> "${GITHUB_ENV}"
+          echo "CANARY_KEYCHAIN_PWD=${CANARY_KEYCHAIN_PWD}" >> "${GITHUB_ENV}"
+          echo "Canary keychain created at: ${KEYCHAIN_PATH}"
+          security list-keychains -d user
+
+      - name: Bootstrap ASC + Dev Portal records (idempotent)
+        run: bundle exec fastlane bootstrap_asc
+
+      - name: Mint canary certs + capture ASC ids to tracking file
+        # Mints DIST + DEV + MAC_INSTALLER into login.keychain-db. After each
+        # successful mint, the just-minted ASC certificate id is appended to
+        # the tracking file. The post-revoke step reads this file (always())
+        # so every minted id gets revoked even if a later step crashes.
+        #
+        # If this step fails partway (e.g. Apple 5xx on mint #2 of 3), the
+        # tracking file already contains the ids minted before the failure,
+        # and the post-step will revoke them.
+        run: |
+          set -euo pipefail
+          bundle exec fastlane mint_canary_certs \
+            types:"${CANARY_CERT_TYPES}" \
+            keychain_path:"${CANARY_KEYCHAIN_PATH}" \
+            keychain_password:"${CANARY_KEYCHAIN_PWD}" \
+            out_path:"${ORPHAN_IDS_FILE}"
+          echo "Tracking file contents after mint:"
+          cat "${ORPHAN_IDS_FILE}"
+
+      - name: Allow codesign + apple-tool to use minted keys non-interactively
+        # set-key-partition-list prevents the "Always Allow?" GUI prompt during
+        # codesign. Must run AFTER cert/key import, BEFORE any codesign
+        # invocation. -S sets which partitions can use the imported keys;
+        # -s flag commits the change.
+        #
+        # Without this, xcodebuild archive hangs forever on the first
+        # codesign call waiting for a GUI prompt that never comes on CI.
+        run: |
+          set -euo pipefail
+          security set-key-partition-list \
+            -S "apple-tool:,apple:,codesign:" \
+            -s -k "${CANARY_KEYCHAIN_PWD}" \
+            "${CANARY_KEYCHAIN_PATH}" 2>&1 | tail -5
+          echo "Partition-list updated; codesign should run non-interactively now."
+
+      - name: Save mid-state tracking file to cache (insurance)
+        # Saves the tracking file with captured ids BEFORE we ship. If the
+        # ship step or the post-revoke step crashes badly enough that
+        # always() doesn't run (rare runner-death scenario), the cache still
+        # persists the orphan ids so next run's pre-step revokes them.
+        if: always() && hashFiles(env.ORPHAN_IDS_FILE) != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ORPHAN_IDS_FILE }}
+          key: canary-orphan-ids-v1-${{ github.run_id }}-${{ matrix.generator }}-mid
+
+      - name: Compute canary tag (CalVer; never pushed)
+        id: ver
+        # CalVer with run_number for uniqueness, prefixed `canary-` so it's
+        # never confused with real release tags. The release lane requires
+        # a tag arg even when skip_tag:true — the value just gets used in
+        # version computation.
+        run: |
+          set -euo pipefail
+          # Tag must match ci/local-release-check.sh's regex
+          # ^v[0-9]+\.[0-9]+\.[0-9]+([-+].+)?$ (e.g. v0.1.0, v0.1.0-rc1).
+          # `v0.YYYY.WW-canary-<run>-<generator>` satisfies it AND:
+          #   - leading `0.` clearly signals canary (any real release would
+          #     have a non-zero major) without the version field looking
+          #     broken in TestFlight (vs. the previous `0.0.0`)
+          #   - `YYYY.WW` carries date context — testers seeing a canary
+          #     build know which week's run it came from
+          #   - `-canary-<run>-<generator>` ensures uniqueness per cell
+          #     (run_number + generator) and unmistakable canary signal
+          #     even at a glance at the raw tag.
+          # Marketing version (CFBundleShortVersionString) becomes
+          # `0.YYYY.WW` after ci/local-release-check.sh strips the
+          # pre-release suffix. ASC accepts 1-3-component versions so this
+          # is well within Apple's contract.
+          CALVER="v0.$(date -u +%Y).$(date -u +%V)-canary-${{ github.run_number }}-${{ matrix.generator }}"
+          echo "tag=${CALVER}" >> "$GITHUB_OUTPUT"
+          echo "Canary tag: ${CALVER}"
+
+      - name: fastlane release (local-mode build + sign + upload, no tag push)
+        env:
+          # Required for repeat ASC uploads in the same ISO week (CFBundleVersion
+          # must be unique even when CFBundleShortVersionString repeats).
+          # Each matrix cell gets a unique CFBundleVersion to avoid ASC 409s
+          # ("duplicate build number") if dry_run=false. github.run_number is
+          # cell-shared, so we offset per generator: xcodegen=*10+1, tuist=*10+2.
+          # 0 = reserved as a sentinel for unset.
+          RELEASE_BUILD_NUMBER: ${{ github.run_number }}${{ matrix.generator == 'xcodegen' && '01' || '02' }}
+          # Both platforms — exercises iOS .ipa + macOS .pkg signing paths.
+          PLATFORMS: ios,macos
+          # The What-to-Test text. Picked up by the release lane's
+          # annotate_testflight_whats_new step (apple-shipkit#149+). ASCII-only —
+          # ASC's BetaBuildLocalization endpoint rejects non-Latin in whatsNew.
+          RELEASE_CHANGELOG: |
+            [CANARY] Local-mode shipping path validation
+            generator:  ${{ matrix.generator }}
+            run:        #${{ github.run_number }} (cell build ${{ github.run_number }}${{ matrix.generator == 'xcodegen' && '01' || '02' }})
+            commit:     ${{ github.sha }}
+            workflow:   https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            bundle exec fastlane release \
+              tag:${{ steps.ver.outputs.tag }} \
+              skip_upload:true \
+              skip_tag:true
+          else
+            # skip_tag:true always — canary doesn't pollute tag history with
+            # 50+ canary-* tags per year. Upload to TestFlight to fully
+            # exercise the pilot retry-with-backoff wrapper.
+            bundle exec fastlane release \
+              tag:${{ steps.ver.outputs.tag }} \
+              skip_tag:true
+          fi
+
+      - name: Populate .bootstrap.env from secrets + repo introspection
+        # bin/verify-testflight.rb (called below) reads `.bootstrap.env` via
+        # Bootstrap::Config.load!, which requires 12 fields for local mode.
+        # The file is gitignored (never committed; per-fork user state), so
+        # it doesn't exist on a fresh CI checkout.
+        #
+        # Strategy: synthesize a `.bootstrap.env` from a mix of GH Secrets
+        # (the 4 fields verify-testflight actually USES — BUNDLE_ID, ASC
+        # creds — must have real values) plus repo-extracted values
+        # (GENERATOR from filesystem, GH_ORG/GH_APP_REPO from git remote)
+        # plus presence-only placeholders for fields validate! requires but
+        # verify-testflight doesn't read.
+        #
+        # The .p8 cert is base64-encoded in the secret; decode to a tmpfile
+        # so Bootstrap.ensure_asc_token! can read it via ASC_API_KEY_P8_PATH.
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+
+          # BUNDLE_ID comes from the workflow-level env block at the top of
+          # this file, which reads vars.BUNDLE_ID. Fail-loud guard if a fork
+          # hasn't configured the repo variable yet.
+          if [ -z "${BUNDLE_ID:-}" ]; then
+            echo "::error::vars.BUNDLE_ID is not set on this repo. Configure it via:"
+            echo "::error::  gh variable set BUNDLE_ID --body <com.you.app> --repo ${{ github.repository }}"
+            echo "::error::Also set APP_NAME the same way."
+            exit 1
+          fi
+
+          # GENERATOR — detect from filesystem. The matrix's preceding switch
+          # step has already mutated the workspace into the cell's shape.
+          if [ -f app/project.yml ]; then
+            GENERATOR=xcodegen
+          else
+            GENERATOR=tuist
+          fi
+
+          # GH_ORG / GH_APP_REPO — extracted from git remote.
+          REMOTE=$(git remote get-url origin)
+          GH_REPO_PATH=$(echo "${REMOTE}" | sed -E 's|.*github\.com[:/]([^/]+/[^/.]+)(\.git)?$|\1|')
+          GH_ORG=$(echo "${GH_REPO_PATH}" | cut -d/ -f1)
+          GH_APP_REPO=$(echo "${GH_REPO_PATH}" | cut -d/ -f2)
+
+          # Decode .p8 to disk so ensure_asc_token! can load it via path.
+          P8_PATH="${RUNNER_TEMP}/asc_api_key_canary.p8"
+          echo "${ASC_API_KEY_P8_BASE64}" | base64 -d > "${P8_PATH}"
+          chmod 600 "${P8_PATH}"
+
+          # Synthesize .bootstrap.env. Fields used by verify-testflight.rb
+          # have real values (BUNDLE_ID, ASC_API_KEY_*); other REQUIRED_ALWAYS
+          # fields get placeholders that satisfy presence checks.
+          cat > .bootstrap.env <<EOF
+          APP_NAME=canary
+          BUNDLE_ID=${BUNDLE_ID}
+          DISPLAY_NAME=Canary
+          APP_EMAIL=canary@local.invalid
+          GENERATOR=${GENERATOR}
+          RELEASE_MODE=local
+          PLATFORMS=ios,macos
+          FASTLANE_TEAM_ID=${FASTLANE_TEAM_ID}
+          ASC_API_KEY_ID=${ASC_API_KEY_ID}
+          ASC_API_KEY_ISSUER_ID=${ASC_API_KEY_ISSUER_ID}
+          ASC_API_KEY_P8_PATH=${P8_PATH}
+          GH_ORG=${GH_ORG}
+          GH_APP_REPO=${GH_APP_REPO}
+          EOF
+          echo "Synthesized .bootstrap.env:"
+          # Print the file but mask the real ASC ids (they're already secrets in CI logs)
+          sed 's/=.*/=***MASKED***/' .bootstrap.env
+          # Export BUNDLE_ID for downstream steps (TestFlight annotation step
+          # needs it to find the just-uploaded build via Spaceship API).
+          echo "BUNDLE_ID=${BUNDLE_ID}" >> "${GITHUB_ENV}"
+
+      - name: Verify TestFlight ingestion
+        # Confirms ASC accepted the upload. Doesn't wait for full processing
+        # (5-15 min); just checks at least one build exists for the bundle.
+        # Real local-mode users run `make verify` which calls the same script.
+        # `RELEASE_TAG` env override is REQUIRED here because the canary's
+        # tag is local-only (never pushed via `skip_tag:true` in the release
+        # lane); without it, verify-testflight.rb's git-tag fallback picks
+        # up the most-recent PUSHED tag (e.g. `v1.7.0` on a fork freshly cut
+        # from upstream) and polls ASC for the wrong marketing version.
+        if: ${{ !inputs.dry_run }}
+        env:
+          RELEASE_TAG: ${{ steps.ver.outputs.tag }}
+        run: bundle exec ruby bin/verify-testflight.rb
+
+
+      # ─── ALWAYS-RUN POST STEPS ──────────────────────────────────────────────
+      # Even if mint/ship/verify failed, revoke whatever ids were captured.
+      # Core invariant: net cert delta per run = 0.
+
+      - name: Post-step — revoke captured canary cert ids
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ ! -f "${ORPHAN_IDS_FILE}" ]; then
+            echo "No tracking file present (mint never started?); nothing to revoke."
+            exit 0
+          fi
+          ids=$(grep -v '^[[:space:]]*$' "${ORPHAN_IDS_FILE}" 2>/dev/null | paste -sd, - || true)
+          if [ -z "${ids}" ]; then
+            echo "Tracking file is empty; nothing to revoke."
+            exit 0
+          fi
+          echo "Revoking captured canary cert ids: ${ids}"
+          bundle exec fastlane revoke_certs ids:"${ids}"
+          # Clear the file so the next run starts clean (post-revoke state
+          # = empty = no orphans).
+          : > "${ORPHAN_IDS_FILE}"
+
+      - name: Save final-state tracking file to cache
+        # Saves the (now-empty, post-revoke) tracking file. Next run's
+        # pre-step restores this and treats it as "no orphans, no-op".
+        if: always() && hashFiles(env.ORPHAN_IDS_FILE) != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.ORPHAN_IDS_FILE }}
+          key: canary-orphan-ids-v1-${{ github.run_id }}-${{ matrix.generator }}-final
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_CANARY_WEBHOOK }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DISCORD_WEBHOOK:-}" ]; then
+            echo "DISCORD_CANARY_WEBHOOK secret unset — skipping Discord notification."
+            echo "(Optional: configure the secret to route canary failures to a Discord channel.)"
+            exit 0
+          fi
+          payload=$(jq -nc \
+            --arg run "${RUN_URL}" \
+            '{ content: ":rotating_light: **Local-mode canary failed**\nRun: \($run)\nNet cert delta should still be 0 (post-step always() revokes captured ids), but verify team state at https://developer.apple.com/account/resources/certificates if in doubt." }')
+          curl -fsSL -X POST -H 'Content-Type: application/json' -d "${payload}" "${DISCORD_WEBHOOK}" \
+            && echo "Posted Discord notification." \
+            || echo "::warning::Discord notification failed (webhook URL may be invalid; check secret). Continuing."

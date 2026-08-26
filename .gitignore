@@ -1,0 +1,71 @@
+# Swift / Xcode
+**/build/
+**/DerivedData/
+**/.build/
+**/*.xcworkspace/xcuserdata/
+**/*.xcodeproj/xcuserdata/
+**/*.xcodeproj/project.xcworkspace/xcuserdata/
+**/Package.resolved.bak
+*.swiftpm/
+xcuserdata/
+
+# XcodeGen-generated Info.plists (regenerated from project.yml)
+app/iOS/Generated-Info.plist
+app/macOS/Generated-Info.plist
+
+# XcodeGen-generated project (regenerated from project.yml)
+# Tuist-generated project + workspace + cache (regenerated from app/Project.swift)
+app/HelloApp.xcodeproj
+app/HelloApp.xcworkspace
+app/Derived/
+.tuist/
+
+# Editor
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Planning + scratch (local-only)
+.planning/
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p8
+*.p12
+*.mobileprovision
+secrets/
+
+# Build / dist
+dist/
+build/
+
+# Logs
+*.log
+logs/
+
+# Fastlane runtime artifacts
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/test_output
+fastlane/README.md
+# Screenshot output — regenerable from `make screenshots`. Don't track binaries.
+fastlane/screenshots/**/*.png
+fastlane/screenshots/**/*.html
+.bundle/
+vendor/bundle/
+
+# OS
+Thumbs.db
+ehthumbs.db
+
+# Generated artifacts (regenerable from CHANGELOG.md)
+release-notes.md
+.bootstrap.env
+.claude/
