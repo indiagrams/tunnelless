@@ -89,6 +89,28 @@ struct TailnetPeer: Identifiable, Sendable, Equatable {
     /// nil when the peer is unreachable; "direct" or a DERP region otherwise.
     let route: String?
 
+    /// Memberwise initializer, for fixtures and screenshot data.
+    ///
+    /// Not synthesized because the type declares its own `init(status:magicDNSSuffix:)`.
+    init(
+        id: String, displayName: String, subtitle: String?, hostName: String,
+        shortDNSName: String?, ipv4: String?, online: Bool, isExitNode: Bool,
+        offersExitNode: Bool, expired: Bool, tags: [String], route: String?
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.subtitle = subtitle
+        self.hostName = hostName
+        self.shortDNSName = shortDNSName
+        self.ipv4 = ipv4
+        self.online = online
+        self.isExitNode = isExitNode
+        self.offersExitNode = offersExitNode
+        self.expired = expired
+        self.tags = tags
+        self.route = route
+    }
+
     init(status: IpnState.PeerStatus, magicDNSSuffix: String?) {
         id = status.ID
         hostName = status.HostName

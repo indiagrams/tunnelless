@@ -17,6 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **App Store screenshot capture that reaches the screens worth showing.** A
+  Simulator has no Tailscale account, so capture previously photographed an idle
+  "not connected" screen and never opened the peer list at all. `DemoData`,
+  gated on the `-UITestDemoData` launch argument, presents the connected state
+  and a representative tailnet through the *same* views and row rendering — only
+  the source of the rows differs. Produces 8 screenshots: iPhone 6.7" and iPad
+  12.9", home and tailnet, light and dark, at Apple's exact slot dimensions
+  (1290×2796 and 2048×2732).
+- Memberwise initializer on `TailnetPeer`, for fixtures and demo data.
 - **Saved services.** Bookmark things on your tailnet — a NAS page, an internal
   API, a router — and open them from the app. This is the point of a userspace
   node: with no VPN profile, no other app on the device can reach these
@@ -34,6 +43,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ServiceRenderingTests` — 16 tests over HTTP parsing and rendering, the layer
   where a saved service degrades silently rather than visibly.
 
+### Changed
+- The tailnet screen is now screenshot **01** and home is **02**. `deliver`
+  orders by filename and most people only look at the first one; the peer list
+  is what distinguishes this app from a connection indicator.
 ### Added
 
 - **Shortcuts, Siri, and Spotlight support** via App Intents: Connect to Tailnet,
