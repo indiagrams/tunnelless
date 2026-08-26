@@ -204,19 +204,37 @@ traps, in [TAILSCALE.md](TAILSCALE.md).
 
 ## Upstream
 
-Two bugs found here have gone upstream:
+Work found here that has gone upstream:
 
-- [#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
+- [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
   `os.Executable` fallback. **Merged, shipped in v1.98.0.**
-- [#20985](https://github.com/tailscale/tailscale/pull/20985) — `Close()`
-  nil-deref when `Start()` failed early. Surfaces through TailscaleKit as
-  `EXC_BAD_ACCESS`, masking the real startup error. Open.
+- [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) —
+  `Close()` nil-deref when `Start()` failed early. Surfaces through TailscaleKit
+  as `EXC_BAD_ACCESS`, masking the real startup error. **Open, approved.**
+- [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) — makes
+  the built xcframework shippable: privacy manifests for the iOS slices
+  (ITMS-91053), a macOS slice, and a validator for the failures that only
+  appear at upload. **Open** ([tailscale#20992](https://github.com/tailscale/tailscale/issues/20992)).
+  If it lands, most of `tailscale/build-tailscalekit.sh` becomes unnecessary
+  and you can take the xcframework straight from upstream.
 
-Related upstream issues:
-[#13937](https://github.com/tailscale/tailscale/issues/13937) (first-class
-Swift support) and
+### Why this repo still exists
+
+Both of the obvious upstream issues —
+[#13937](https://github.com/tailscale/tailscale/issues/13937) (first-class Swift
+support) and
 [#15410](https://github.com/tailscale/tailscale/issues/15410) (libtailscale on
-iOS).
+iDevices) — are **closed as completed**. TailscaleKit is the result of the
+first, and this project is built on it.
+
+Closed is not the same as finished, though. Both the App Sandbox requirement
+(`com.apple.security.network.server`, without which a signed macOS build never
+starts tsnet) and the `LocalAPIClient` hang on physical iOS devices were found
+*after* those issues were closed — which is a fair sign of how much this
+particular path is currently exercised.
+
+#15410 ends with a maintainer noting *"The HelloTailscale sample should get
+ported over to iOS."* That is, more or less, what this repo is.
 
 ---
 
