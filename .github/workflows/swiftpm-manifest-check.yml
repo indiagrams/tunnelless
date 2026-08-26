@@ -1,0 +1,38 @@
+name: swiftpm-manifest-check
+
+# Package.swift pins a release URL and a checksum. Both must move whenever
+# tailscale/TAILSCALE_VERSION moves — and nothing else would notice if they
+# did not. SwiftPM would keep resolving the OLD binary perfectly happily, so
+# consumers would silently sit on a stale tsnet while every other check here
+# reported green.
+#
+# Runs on ubuntu: it only reads two files and downloads one asset.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Package.swift'
+      - 'tailscale/TAILSCALE_VERSION'
+      - 'tailscale/verify-package-manifest.sh'
+      - '.github/workflows/swiftpm-manifest-check.yml'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: swiftpm-manifest-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Package.swift matches the pinned release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: verify manifest
+        run: bash tailscale/verify-package-manifest.sh

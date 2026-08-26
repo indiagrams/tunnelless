@@ -80,3 +80,6 @@ vendor/LICENSE-tailscale-BSD-3-Clause.txt
 vendor/libtailscale/libtailscale*.a
 vendor/libtailscale/libtailscale*.h
 vendor/libtailscale/swift/build/
+
+# SwiftPM build products (a root Package.swift vends the prebuilt xcframework).
+.build/

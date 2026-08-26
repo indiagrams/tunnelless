@@ -62,7 +62,26 @@ project or a SwiftPM package — it lives as
 inside [`tailscale/libtailscale`](https://github.com/tailscale/libtailscale),
 and there's no published binary, which is why this repo builds one.
 
-**Option A — download a prebuilt release** (fastest)
+**Option A — add it as a SwiftPM dependency** (easiest)
+
+```swift
+.package(url: "https://github.com/indiagrams/embedded-tailscale-ios", branch: "main")
+```
+
+(No semver tags are published yet, so pin the branch — or a revision, if you
+want the pin to be immutable.)
+
+The package vends nothing but the prebuilt `TailscaleKit.xcframework`, pinned
+by SHA-256 — a moved or rewritten asset fails resolution rather than silently
+swapping the binary. `import TailscaleKit` and you're done; no Embed & Sign
+step.
+
+Note the module is named `TailscaleKit`, which is fixed by the binary. An
+unrelated package ([mikeydotio/TailscaleKit](https://github.com/mikeydotio/TailscaleKit))
+vends a module of the same name, built statically from its own C interface and
+iOS-only. The two can't coexist in one dependency graph.
+
+**Option B — download a prebuilt release** (no SwiftPM)
 
 Grab `TailscaleKit.xcframework.zip` from
 [Releases](../../releases), unzip, drag into your Xcode project, and set it to
@@ -79,7 +98,7 @@ already contains everything Apple checks for:
 It is **unsigned by design** — your app signs it on embed. Each release states
 the exact `tailscale.com` version it was built from.
 
-**Option B — build it yourself**
+**Option C — build it yourself**
 
 ```bash
 git submodule update --init --recursive     # vendor/libtailscale
