@@ -1,4 +1,4 @@
-# embedded-tailscale-ios
+# Tunnelless
 
 > **Put an iOS or macOS app on a Tailscale network without a VPN profile.**
 > No `NEPacketTunnelProvider`, no NetworkExtension entitlement, no "Allow VPN
@@ -65,7 +65,7 @@ and there's no published binary, which is why this repo builds one.
 **Option A — add it as a SwiftPM dependency** (easiest)
 
 ```swift
-.package(url: "https://github.com/indiagrams/embedded-tailscale-ios", from: "0.1.0")
+.package(url: "https://github.com/indiagrams/tunnelless", from: "0.1.0")
 ```
 
 **Versioning.** The package version is independent of the Tailscale version it

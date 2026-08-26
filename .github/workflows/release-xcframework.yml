@@ -103,7 +103,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/vendor/libtailscale/LICENSE" LICENSE-tailscale-BSD-3-Clause.txt 2>/dev/null || true
           cat > README.txt <<'EOT'
           TailscaleKit.xcframework
-          Built by tailscale/build-tailscalekit.sh in indiagrams/embedded-tailscale-ios.
+          Built by tailscale/build-tailscalekit.sh in indiagrams/tunnelless.
 
           Unsigned by design — your app signs it on embed (set it to "Embed & Sign").
           Slices: ios-arm64, ios-arm64_x86_64-simulator, macos-arm64.

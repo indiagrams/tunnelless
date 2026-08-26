@@ -30,7 +30,7 @@ import PackageDescription
 // Hoisted so the line fits SwiftLint's 140-char limit. It must stay on ONE
 // line and keep this exact shape: tailscale/verify-package-manifest.sh greps
 // the URL out of this file to check it still matches the pinned version.
-let assetURL = "https://github.com/indiagrams/embedded-tailscale-ios/releases/download/tailscalekit-v1.102.3/TailscaleKit.xcframework.zip"
+let assetURL = "https://github.com/indiagrams/tunnelless/releases/download/tailscalekit-v1.102.3/TailscaleKit.xcframework.zip"
 
 let package = Package(
     name: "TailscaleKit",
