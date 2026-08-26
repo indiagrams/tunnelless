@@ -17,6 +17,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Saved services.** Bookmark things on your tailnet — a NAS page, an internal
+  API, a router — and open them from the app. This is the point of a userspace
+  node: with no VPN profile, no other app on the device can reach these
+  addresses, so this app has to be the client.
+- **Save as service from a peer row.** Long-press any device in the tailnet list
+  to bookmark it, pre-filled with its MagicDNS name. The dashboard tells you a
+  machine is reachable; this turns it into something you can open.
+- `ServiceReaderView` — fetches through the SOCKS5 proxy and renders the
+  response: JSON pretty-printed with sorted keys, HTML reduced to its text,
+  plain text as-is, anything else described. Deliberately a reader and not a web
+  view: `WKWebView` cannot use a SOCKS proxy, and a custom scheme handler would
+  mean proxying every subresource, redirect, and cookie by hand while WebSockets
+  still failed.
+- `SOCKS5Client.fetch(...)` returning a parsed status, headers, and body.
+- `ServiceRenderingTests` — 16 tests over HTTP parsing and rendering, the layer
+  where a saved service degrades silently rather than visibly.
+
+### Added
+
 - **Shortcuts, Siri, and Spotlight support** via App Intents: Connect to Tailnet,
   Get Tailnet Status, Count Online Devices, and Browse Tailnet. The status
   intents answer without launching the app; the two that need the node open it,

@@ -13,6 +13,7 @@ import TailscaleKit
 struct PeerListView: View {
     @State private var model: PeerListModel
     @State private var search = ""
+    @State private var pendingService: TailnetPeer?
 
     init(manager: TailscaleNodeManager) {
         _model = State(initialValue: PeerListModel(manager: manager))
@@ -52,6 +53,16 @@ struct PeerListView: View {
             Section {
                 ForEach(visiblePeers) { peer in
                     PeerRow(peer: peer)
+                        .contextMenu {
+                            // The join between the two halves of the app: the dashboard
+                            // tells you a machine is reachable, this turns it into
+                            // something you can actually open.
+                            Button {
+                                pendingService = peer
+                            } label: {
+                                Label("Save as service", systemImage: "bookmark")
+                            }
+                        }
                 }
             } header: {
                 Text(model.headerText)
@@ -67,6 +78,14 @@ struct PeerListView: View {
         .navigationTitle(model.tailnetName ?? "Tailnet")
         .task { await model.startPolling() }
         .onDisappear { model.stopPolling() }
+        .sheet(item: $pendingService) { peer in
+            // Prefer the MagicDNS name over the IP: it survives the peer being
+            // reassigned an address, and it is what a person recognises.
+            ServiceEditor(
+                prefilledHost: peer.shortDNSName ?? peer.ipv4 ?? peer.displayName,
+                prefilledName: peer.displayName
+            ) { SavedServiceStore.add($0) }
+        }
     }
 }
 

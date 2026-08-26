@@ -50,7 +50,79 @@ struct SOCKS5Client: Sendable {
     /// Deliberately raw rather than URLSession-backed: the point is to prove that
     /// bytes traverse the tailnet, with nothing in between that could quietly
     /// fall back to the normal interface.
+    /// A parsed HTTP/1.1 response.
+    ///
+    /// Deliberately minimal: status, headers, body. Enough for a reader view to decide
+    /// how to render, without pulling in a full HTTP stack for a tunnelled GET.
+    struct Response: Sendable {
+        let statusCode: Int
+        let reason: String
+        let headers: [String: String]
+        let body: Data
+
+        /// Lowercased, parameters stripped — "text/html; charset=utf-8" becomes "text/html".
+        var contentType: String {
+            (headers["content-type"] ?? "")
+                .split(separator: ";").first
+                .map { $0.trimmingCharacters(in: .whitespaces).lowercased() } ?? ""
+        }
+
+        var bodyText: String {
+            String(bytes: body, encoding: .utf8) ?? ""
+        }
+    }
+
+    /// GET a URL through the proxy and parse the response.
+    func fetch(host: String, port: UInt16, path: String = "/", timeout: TimeInterval = 20) async throws -> Response {
+        let raw = try await rawGet(host: host, port: port, path: path, timeout: timeout)
+        return Self.parse(raw)
+    }
+
+    /// Splits an HTTP/1.1 response into status line, headers, and body.
+    ///
+    /// Header/body separation is on the first CRLFCRLF in the BYTES, not in a decoded
+    /// string — a body may be binary or invalid UTF-8, and decoding first would corrupt
+    /// it or fail outright before the headers could even be read.
+    static func parse(_ raw: Data) -> Response {
+        let sep = Data("\r\n\r\n".utf8)
+        let head: Data, body: Data
+        if let r = raw.range(of: sep) {
+            head = raw.subdata(in: raw.startIndex ..< r.lowerBound)
+            body = raw.subdata(in: r.upperBound ..< raw.endIndex)
+        } else {
+            head = raw
+            body = Data()
+        }
+
+        let lines = (String(bytes: head, encoding: .utf8) ?? "").components(separatedBy: "\r\n")
+        var status = 0
+        var reason = ""
+        if let statusLine = lines.first {
+            let parts = statusLine.split(separator: " ", maxSplits: 2).map(String.init)
+            if parts.count >= 2 {
+                status = Int(parts[1]) ?? 0
+            }
+            if parts.count >= 3 {
+                reason = parts[2]
+            }
+        }
+
+        var headers: [String: String] = [:]
+        for line in lines.dropFirst() {
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let key = line[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
+            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+            headers[key] = value
+        }
+        return Response(statusCode: status, reason: reason, headers: headers, body: body)
+    }
+
     func get(host: String, port: UInt16, path: String = "/", timeout: TimeInterval = 20) async throws -> String {
+        let raw = try await rawGet(host: host, port: port, path: path, timeout: timeout)
+        return String(bytes: raw, encoding: .utf8) ?? ""
+    }
+
+    private func rawGet(host: String, port: UInt16, path: String, timeout: TimeInterval) async throws -> Data {
         let conn = try await openTunnel(host: host, port: port, timeout: timeout)
         defer { conn.cancel() }
 
@@ -64,7 +136,7 @@ struct SOCKS5Client: Sendable {
         while let chunk = try await Self.receiveSome(conn) {
             body.append(chunk)
         }
-        return String(bytes: body, encoding: .utf8) ?? ""
+        return body
     }
 
     /// Opens a SOCKS5 tunnel to `host:port` and returns the connected socket,
