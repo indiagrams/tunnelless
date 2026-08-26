@@ -189,7 +189,7 @@ jobs:
           # Forks that publish their own xcframework release can point this
           # at their own slug via a repo variable; the default is upstream,
           # which is where the asset actually lives.
-          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/embedded-tailscale-ios' }}
+          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/tunnelless' }}
         run: |
           set -euo pipefail
           TSNET_VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
