@@ -73,6 +73,10 @@ release-notes.md
 # Built by tailscale/build-tailscalekit.sh (~50MB of Go-compiled slices).
 # Deliberately not committed: the pipeline that produces it IS the reference.
 vendor/TailscaleKit.xcframework/
+# Shipped alongside the xcframework inside TailscaleKit.xcframework.zip, so
+# they land in vendor/ whenever the release asset is unzipped there.
+vendor/README.txt
+vendor/LICENSE-tailscale-BSD-3-Clause.txt
 vendor/libtailscale/libtailscale*.a
 vendor/libtailscale/libtailscale*.h
 vendor/libtailscale/swift/build/

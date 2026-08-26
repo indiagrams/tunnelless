@@ -161,7 +161,55 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_ANALYTICS: "1"
     steps:
+      # submodules: vendor/libtailscale (560 KB) is checked out for its
+      # go.mod alone — the TailscaleKit release tag is derived from it in
+      # the fetch step below.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      # FORK-OWNED STEP (see AGENTS.md "Your fork's conventions").
+      #
+      # vendor/TailscaleKit.xcframework is ~94 MB of Go-compiled slices and
+      # is gitignored, so without this step every app job dies at
+      # "There is no XCFramework found at .../vendor/TailscaleKit.xcframework".
+      #
+      # We download the prebuilt release asset rather than running
+      # tailscale/build-tailscalekit.sh: ~20 s versus ~5 min, no Go toolchain
+      # on the runner, and it exercises the exact "Option A" path README.md
+      # tells adopters to use — so CI proves the documented happy path works.
+      #
+      # The tag is DERIVED from the pinned submodule's go.mod, the same way
+      # build-tailscalekit.sh derives its build version. Do NOT hardcode a
+      # version here: a hardcoded `tailscale.com@v1.96.4` in the build script
+      # is exactly how an xcframework once shipped without its crash fix,
+      # because the pin moved and the patch step silently took its
+      # "not found" branch.
+      - name: fetch TailscaleKit.xcframework
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Forks that publish their own xcframework release can point this
+          # at their own slug via a repo variable; the default is upstream,
+          # which is where the asset actually lives.
+          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/embedded-tailscale-ios' }}
+        run: |
+          set -euo pipefail
+          TSNET_VERSION="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          if [ -z "$TSNET_VERSION" ]; then
+            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            exit 1
+          fi
+          TAG="tailscalekit-${TSNET_VERSION}"
+          echo "tailscale.com ${TSNET_VERSION} (from go.mod) -> release ${TAG} in ${TSKIT_REPO}"
+          gh release download "$TAG" \
+            --repo "$TSKIT_REPO" \
+            --pattern 'TailscaleKit.xcframework.zip' \
+            --dir "$RUNNER_TEMP"
+          unzip -q "$RUNNER_TEMP/TailscaleKit.xcframework.zip" -d vendor/
+          # Same 6 checks the build script's callers run. Cheap, and it keeps
+          # a corrupted or mis-published asset from surfacing as a confusing
+          # compile error 3 minutes later.
+          bash tailscale/validate-xcframework.sh
 
       - name: install xcbeautify + generator
         run: |
