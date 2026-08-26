@@ -119,3 +119,38 @@ the validator exists.
 While #20985 is unmerged, `build-tailscalekit.sh` patches the fix into the Go
 module cache and **hard-fails if the patch doesn't apply** — an xcframework
 missing a crash fix should never build silently.
+
+## macOS: the App Sandbox needs `network.server`
+
+A sandboxed macOS build fails to start tsnet at all unless
+`com.apple.security.network.server` is granted. tsnet listens on loopback — that
+is where the SOCKS5 proxy lives — and a listening socket under App Sandbox
+requires that entitlement.
+
+Measured on a signed build, same binary, varying only the entitlements:
+
+| Entitlements | `tailscale_start` |
+| --- | --- |
+| `app-sandbox` alone | `res=-1` |
+| `app-sandbox` + `network.client` | `res=-1` |
+| `app-sandbox` + `network.server` | `res=0` |
+| `app-sandbox` + both | `res=0` |
+
+`network.client` is granted too, for outbound connections to the control plane,
+DERP, and peers. The `network.server`-only run above reused an
+already-authenticated state directory, so it never exercised a cold
+control-plane dial.
+
+**Why CI missed it.** The `app` matrix builds unsigned
+(`CODE_SIGNING_ALLOWED=NO`), and without a signature the sandbox is not
+enforced — so an unsigned build connects happily while the signed one it
+ships never starts. Any change to `app/macOS/*.entitlements` should be checked
+against a *signed* build:
+
+```bash
+xcodebuild build -project app/TailnetDemo.xcodeproj -scheme TailnetDemo-macOS \
+  -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/dd-mac \
+  CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES
+timeout 45 /tmp/dd-mac/Build/Products/Debug/TailnetDemo-macOS.app/Contents/MacOS/TailnetDemo-macOS \
+  -autoconnect 2>&1 | grep tailscale_start
+```

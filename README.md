@@ -39,8 +39,14 @@ VPN client. If your app only needs to reach *its own* infrastructure (your
 server, your user's device, a self-hosted backend), the right column is
 dramatically lighter.
 
-The proof: this demo app's entire iOS entitlements file is one key,
-`aps-environment`, and it builds and runs on a real device.
+The proof: this demo app's iOS entitlements file is **empty** — not one key in
+it — and it builds and runs on a real device.
+
+On macOS the app is sandboxed, which does require
+`com.apple.security.network.server` (tsnet listens on loopback to expose the
+SOCKS5 proxy) and `com.apple.security.network.client`. Those are ordinary App
+Sandbox keys, not the NetworkExtension entitlement — no VPN profile, no
+extension target, and no special entitlement request to Apple.
 
 ---
 
