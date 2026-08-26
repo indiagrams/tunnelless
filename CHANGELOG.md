@@ -15,6 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-08-26
+
+First App Store release. Tunnelless joins a Tailscale network from inside the
+app — no VPN profile, no NetworkExtension entitlement — and gives that network a
+face: a peer dashboard, saved services you can open through the node's SOCKS5
+proxy, and Shortcuts actions.
+
 ### Added
 
 - **App Store screenshot capture that reaches the screens worth showing.** A

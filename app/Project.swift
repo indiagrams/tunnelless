@@ -17,7 +17,7 @@ let baseSettings: SettingsDictionary = [
     "SWIFT_VERSION": "6.0",
     "SWIFT_STRICT_CONCURRENCY": "complete",
     "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
-    "MARKETING_VERSION": "0.0.1",
+    "MARKETING_VERSION": "0.1.0",
     "CURRENT_PROJECT_VERSION": "1",
     // DEVELOPMENT_TEAM is auto-substituted by bin/rename.sh --team-id
     // (auto-passed by bin/bootstrap-fork.rb from .bootstrap.env FASTLANE_TEAM_ID).
