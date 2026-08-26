@@ -15,6 +15,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Corrected the `LocalAPIClient` root cause — twice-wrong, now measured.** The
+  previous entry claimed the hang came from `proxyVia(_:)` routing LocalAPI
+  requests through the SOCKS5 proxy, and quoted a "stock hangs forever" figure
+  that had never actually been measured; stock returns in 8 ms once the node is
+  Running. The real cause is an actor deadlock during bring-up: `up()` is a
+  blocking C call holding the `TailscaleNode` actor for the entire login, and
+  every `LocalAPIClient` request awaits the actor-isolated `node.loopback()` for
+  a value that is already memoized. Measured on device with the node in
+  `NeedsLogin`: direct HTTP to the LocalAPI answers in 32 ms while
+  `backendStatus()` does not return for 53 s. Upstream fix filed as
+  [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) and
+  tracked in
+  [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997);
+  carried locally as
+  `tailscale/patches/0002-localapi-nonisolated-loopback.patch` until it lands.
+
+### Added
+
+- `-duringup` launch argument: probes the LocalAPI both directly and through
+  `LocalAPIClient` *while `up()` is still in flight*. Measurements taken after
+  the node reaches Running cannot see this bug at all, which is how it stayed
+  misdiagnosed.
+- `tailscale/patches/0002-localapi-nonisolated-loopback.patch`, applied by
+  `build-tailscalekit.sh` alongside the existing tracing patch.
+
 ### Added
 
 - `TailscaleKit.xcframework` fetch step in `.github/workflows/pr.yml`, plus

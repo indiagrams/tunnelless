@@ -64,44 +64,55 @@ lives in `tailscale/`, not `ci/`, so the fork can still merge upstream.**
 
 ## The five things that will bite you
 
-**1. `LocalAPIClient` hangs forever on physical iOS devices — but the LocalAPI
-itself is fine.** Every call through the client — `startLoginInteractive()`,
-`backendStatus()`, `watchIPNBus()` — blocks and never returns. No error, no
-timeout. The fault is in TailscaleKit's Swift wrapper, **not** in tsnet.
+**1. `LocalAPIClient` is unusable *during bring-up*, because `up()` holds the
+actor every request awaits.** `startLoginInteractive()`, `backendStatus()` and
+`watchIPNBus()` all block until `up()` returns — minutes for an interactive
+login, forever if the user never finishes. After `up()` returns they work
+normally, which is what makes this so easy to misread as a dead LocalAPI.
 
-*Corrected 2026-08-26.* This entry previously blamed the loopback listener. Two
-measurements on a physical iPhone 12, node Running, say otherwise:
+*Corrected twice; the history matters more than the conclusion.* This entry
+first blamed tsnet's loopback listener. It was then rewritten to blame SOCKS5
+proxy routing in `proxyVia(_:)` — also wrong, and worse, that revision quoted a
+"stock hangs forever" figure that had never been measured. Both are recorded
+here because the wrong turns are instructive: every measurement taken *after*
+`up()` returned looked healthy, so the bug was invisible until something probed
+*during* the login window.
 
-| Path | Result |
-|---|---|
-| SOCKS5 `CONNECT` to a tailnet peer, then HTTP/1.1 | **200 OK in 76 ms**, correct body |
-| `GET http://<loopback>/localapi/v0/status` directly | **200 OK in 69 ms**, 79,919 bytes, 65 peers |
+**Root cause.** `up()` is `tailscale_up`, a blocking C call that holds the
+`TailscaleNode` actor for the whole login flow — this is item 2 below. Every
+`LocalAPIClient` request builds its session through `proxyVia(_:)`, which does
+`await node.loopback()`, an actor-isolated accessor. That await queues behind
+`up()` and never resumes until it returns. Items 1 and 2 are the same bug.
 
-So the loopback listener serves both the SOCKS5 proxy and the LocalAPI
-correctly on device. Reproduce either with the launch arguments
-`-probe <host:port>` and `-localapi` (see `SOCKS5Client.swift` and the probe
-hooks in `ContentView.swift`).
+The awaited value is already memoized: `loopback()` caches on first call and
+returns the same value forever after, so the actor entry buys nothing.
 
-**Root cause.** `URLSession+Tailscale.swift`'s `proxyVia(_:)` sets
+Measured on a physical iPhone 12, node left in `NeedsLogin` so `up()` blocked
+~53 s, probing concurrently with `up()`:
 
-```swift
-self.proxyConfigurations = [ProxyConfiguration(socksv5Proxy: endpoint)]
-```
+| Arm | Enters the node actor? | Result during `up()` |
+|---|---|---|
+| direct HTTP `GET /localapi/v0/status`, loopback captured before `up()` | no | **200 OK in 32 ms**, `BackendState=NeedsLogin` |
+| `LocalAPIClient.backendStatus()` — stock | yes | **hung**; resolved only once `up()` returned |
+| `LocalAPIClient.backendStatus()` — patched | no | **200 OK in 2 ms** |
 
-where `endpoint` is the loopback address itself, and `LocalAPIClient` calls it
-for every request. So each LocalAPI call asks the SOCKS5 proxy to dial the
-address that proxy is listening on. The handshake succeeds, the `CONNECT` never
-resolves, and you get exactly the observed symptom. It is also unnecessary:
-`tailscale.h` states the same HTTP server "serves out the LocalAPI on
-`/localapi`", so it is directly reachable — no proxy hop required.
+The direct arm is the control: the LocalAPI listener answers throughout, so only
+the actor hop in front of it is blocked. After `up()` returns, stock
+`backendStatus()` answers in 8 ms — there is no hang to find there.
 
-Reaching it directly needs both credentials documented in `tailscale.h`: the
-header `Sec-Tailscale: localapi` **and** HTTP basic auth with `local_api_cred`
-as the password.
+Reproduce with the launch arguments `-duringup` (both arms above), `-probe
+<host:port>` (SOCKS5 to a peer), `-localapi` (direct HTTP) and `-localapiclient`
+(the real client, after Running). Reaching the LocalAPI directly needs both
+credentials from `tailscale.h`: the `Sec-Tailscale: localapi` header **and**
+basic auth with `local_api_cred`.
 
-Until the upstream fix lands, the login-flow workaround below still applies,
-because it predates this finding and is independently reliable. Peer and status
-data, however, can be read directly today.
+**Fix:** [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58)
+adds `nonisolated resolvedLoopback()` so the memoized value is readable without
+actor entry. Carried locally as
+`tailscale/patches/0002-localapi-nonisolated-loopback.patch` until it lands.
+
+The login workaround stays regardless — it needs no credentials and is the only
+signal available before the node is up.
 
 The login workaround is `LogPipeLogger`: attach a `LogSink`, read tsnet's own
 log stream, and match on
@@ -144,18 +155,19 @@ the validator exists.
 
 ## Upstream
 
-Contributed from this project:
+Everything this project has filed upstream, newest first.
 
-- [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
-  `os.Executable` fallback. **Merged**, shipped in v1.98.0.
-- [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) —
-  `Close()` nil-deref when `Start()` failed early. Surfaces through
-  TailscaleKit as `EXC_BAD_ACCESS`, masking the real startup error.
-  **Open, approved.**
-- [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) — makes
-  the built xcframework distributable: privacy manifests (ITMS-91053), a macOS
-  slice, and a validator for the failures that only appear at upload. **Open.**
-  If it lands, most of `build-tailscalekit.sh` becomes redundant.
+| Upstream | What | Status |
+| --- | --- | --- |
+| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | `nonisolated resolvedLoopback()` so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Open** |
+| [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
+| [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) | Makes the built xcframework distributable: privacy manifests (ITMS-91053), a macOS slice, a validator for upload-only failures | **Open** |
+| [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Open, approved** |
+| [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 |
+
+If #57 lands, most of `build-tailscalekit.sh` becomes redundant. If #58 lands,
+`tailscale/patches/0002-localapi-nonisolated-loopback.patch` can be dropped and
+status/peer data becomes readable during login without a workaround.
 
 Background, both **closed as completed**:
 
@@ -167,12 +179,12 @@ Background, both **closed as completed**:
   ends with *"The HelloTailscale sample should get ported over to iOS."*
 
 Closed-as-completed does not mean finished in practice — the `network.server`
-sandbox requirement and the `LocalAPIClient` device hang documented above were
-both found after those issues were closed.
+sandbox requirement and the bring-up deadlock in item 1 were both found after
+those issues were closed.
 
-While #20985 is unmerged, `build-tailscalekit.sh` patches the fix into the Go
-module cache and **hard-fails if the patch doesn't apply** — an xcframework
-missing a crash fix should never build silently.
+While #20985 and #58 are unmerged, `build-tailscalekit.sh` applies them from
+`tailscale/patches/` and **hard-fails if a patch doesn't apply** — an
+xcframework missing a fix should never build silently.
 
 ## macOS: the App Sandbox needs `network.server`
 
