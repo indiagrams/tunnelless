@@ -171,6 +171,13 @@ actor TailscaleNodeManager {
         try await upTask.value
     }
 
+    /// The in-flight bring-up task.
+    ///
+    /// Handed to `WebAuthLogin.present(url:dismissWhen:)` so the login sheet can dismiss
+    /// itself the moment the node reaches Running — Tailscale never redirects back to the
+    /// app, so completion has to be observed from the node, not from the browser.
+    func currentUpTask() -> Task<Void, Error>? { upTask }
+
     /// tsnet's log stream, line by line.
     ///
     /// Match on these two lines to drive a login UI:

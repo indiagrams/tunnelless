@@ -33,10 +33,13 @@ struct ContentView: View {
                 labelled("SOCKS5 proxy", proxy)
             }
 
-            if let url = model.authURL {
-                Link("Open login page", destination: url)
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier(AccessibilityIdentifiers.loginLink)
+            if model.authURL != nil {
+                // Opens an in-app sheet and returns here automatically once the node is up.
+                Button("Sign in to Tailscale") {
+                    Task { await model.presentLogin() }
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier(AccessibilityIdentifiers.loginLink)
             }
 
             if let err = model.errorText {
@@ -120,6 +123,7 @@ final class DemoModel {
     var errorText: String?
     var isBusy = false
     var isRunning = false
+    var isPresentingLogin = false
 
     private var logTask: Task<Void, Never>?
 
@@ -139,6 +143,11 @@ final class DemoModel {
             startWatchingLogs()
 
             statusText = "waiting for login…"
+
+            // If tsnet needs interactive auth it logs an AuthURL within a few seconds.
+            // Present it in-app as soon as it appears, rather than making the user tap.
+            await presentLoginWhenURLAppears()
+
             try await manager.awaitUp()
 
             if case let .connected(ip) = await manager.state {
@@ -177,6 +186,31 @@ final class DemoModel {
             } catch {
                 return
             }
+        }
+    }
+
+    /// Presents the interactive login sheet for the URL parsed from tsnet's logs.
+    ///
+    /// The sheet closes itself when the node reaches Running — Tailscale's flow ends on
+    /// console.tailscale.com and never redirects back to the app, so the node is the only
+    /// reliable completion signal.
+    func presentLogin() async {
+        guard let url = authURL, !isPresentingLogin else { return }
+        isPresentingLogin = true
+        let ok = await WebAuthLogin.present(url: url, dismissWhen: await manager.currentUpTask())
+        isPresentingLogin = false
+        if !ok { statusText = "login cancelled" }
+    }
+
+    /// Waits briefly for tsnet to log an auth URL, then presents it.
+    ///
+    /// Returns immediately if the node is already authorised — a node with persisted state
+    /// goes straight to Running and never logs an AuthURL, so waiting forever would hang.
+    private func presentLoginWhenURLAppears() async {
+        for _ in 0..<40 {                       // ~20s
+            if authURL != nil { await presentLogin(); return }
+            if isRunning { return }
+            try? await Task.sleep(for: .milliseconds(500))
         }
     }
 
