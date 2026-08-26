@@ -4,9 +4,33 @@
 <dict>
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <!-- Add capabilities as needed:
-        <key>com.apple.security.network.client</key><true/>
-        <key>com.apple.security.network.server</key><true/>
+
+    <!-- REQUIRED for tsnet. Without network.server, tailscale_start() returns
+         res=-1 on every launch of a sandboxed build and the node never comes
+         up: tsnet listens on loopback (the SOCKS5 proxy this app hands out),
+         and under App Sandbox a listening socket needs this entitlement.
+
+         Measured on a signed build, same binary, only the entitlements varying:
+
+           app-sandbox alone                  -> tailscale_start res=-1
+           app-sandbox + network.client       -> tailscale_start res=-1
+           app-sandbox + network.server       -> tailscale_start res=0
+           app-sandbox + client + server      -> tailscale_start res=0
+
+         CI never caught this because CI builds unsigned
+         (CODE_SIGNING_ALLOWED=NO), and the sandbox is not enforced without a
+         signature. -->
+    <key>com.apple.security.network.server</key>
+    <true/>
+
+    <!-- Outbound connections: the control plane, DERP relays, and peers.
+         Kept explicit rather than relying on network.server having been
+         sufficient in local testing — that run reused an already-authenticated
+         state directory, so it did not exercise a cold control-plane dial. -->
+    <key>com.apple.security.network.client</key>
+    <true/>
+
+    <!-- Add further capabilities as needed:
         <key>com.apple.security.device.camera</key><true/>
     -->
 </dict>
