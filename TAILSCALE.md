@@ -44,36 +44,6 @@ make check                                  # builds iOS + macOS
 The xcframework (~94 MB) is **not** committed. The pipeline that produces it is
 the actual contribution here, so building it is part of using this repo.
 
-### Running on a real device
-
-`DEVELOPMENT_TEAM` stays as `TEAM_ID_PLACEHOLDER` in `project.yml` — pass your own
-team on the command line rather than committing it:
-
-```bash
-xcodebuild build \
-  -project app/TailnetDemo.xcodeproj -scheme TailnetDemo-iOS -configuration Debug \
-  -destination 'id=<YOUR-DEVICE-UDID>' -allowProvisioningUpdates \
-  DEVELOPMENT_TEAM=<YOUR-TEAM-ID>
-
-xcrun devicectl device install app --device <UDID> <path-to>/TailnetDemo-iOS.app
-xcrun devicectl device process launch --device <UDID> \
-  --terminate-existing --console com.indiagram.tailnetdemo -- -autoconnect
-```
-
-Four Apple-side prerequisites, each of which fails with its own unhelpful error:
-
-1. **Trust the Mac** on the device (`pairingState` must be `paired`).
-2. **Developer Mode** on the device — Settings → Privacy & Security → Developer Mode,
-   then restart. Without it `xcodebuild` reports only `Device is busy (Waiting to
-   reconnect)`, which does not hint at the real cause.
-3. **Accept the current Program License Agreement** at developer.apple.com, or every
-   provisioning call fails with `PLA Update available`.
-4. **Register the device UDID** in the developer account. `-allowProvisioningUpdates`
-   does *not* do this for you; it fails with `isn't registered in your developer account`.
-
-`--console` streams the app's stdout, which is how you see tsnet's own log lines
-without attaching a debugger.
-
 ## What's where
 
 | Path                                       | What                                                     |

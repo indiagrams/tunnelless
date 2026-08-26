@@ -29,6 +29,10 @@ struct ContentView: View {
                     .accessibilityIdentifier(AccessibilityIdentifiers.tailnetIP)
             }
 
+            if let proxy = model.socksProxy {
+                labelled("SOCKS5 proxy", proxy)
+            }
+
             if model.authURL != nil {
                 // Opens an in-app sheet and returns here automatically once the node is up.
                 Button("Sign in to Tailscale") {
@@ -76,7 +80,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Tailnet Demo")
                 .font(.title2.bold())
-            Text("Connect this app to your private network.")
+            Text("A userspace tsnet node inside this app — no VPN profile.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -114,6 +118,7 @@ final class DemoModel {
 
     var statusText = "idle"
     var tailnetIP: String?
+    var socksProxy: String?
     var authURL: URL?
     var errorText: String?
     var isBusy = false
@@ -131,12 +136,8 @@ final class DemoModel {
             try await manager.startForBrowserLogin()
 
             // Cached before up() ran — see TailscaleNodeManager.cachedLoopback.
-            //
-            // This is where app traffic egresses onto the tailnet: point URLSession (or a
-            // raw socket) at this SOCKS5 address using lb.proxyCredential. Logged rather
-            // than shown in the UI — it's an implementation detail, not user-facing.
             if let lb = await manager.cachedLoopback {
-                NSLog("[TailnetDemo] tsnet SOCKS5 loopback: %@", lb.address)
+                socksProxy = "\(lb.address)"
             }
 
             startWatchingLogs()
@@ -218,6 +219,7 @@ final class DemoModel {
         logTask?.cancel()
         await manager.signOutAndReset()
         tailnetIP = nil
+        socksProxy = nil
         authURL = nil
         isRunning = false
         statusText = "idle"
