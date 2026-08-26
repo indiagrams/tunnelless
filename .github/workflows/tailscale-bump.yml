@@ -1,0 +1,202 @@
+name: tailscale-bump
+
+# Prepares a Tailscale version bump as a reviewable PR. It never merges and
+# never publishes.
+#
+# Why this is more than "edit one line": the version lives in a DIFFERENT
+# repository. The chain is
+#
+#   tailscale/tailscale                (the release)
+#     -> indiagrams/libtailscale       (fork; go.mod pins tailscale.com,
+#                                       and carries local patches)
+#       -> this repo                   (submodule pin)
+#
+# So a bump means: change go.mod in the fork, push it there, move the submodule
+# pointer here, rebuild the xcframework, validate it, and only then ask a human
+# to look. Each of those can fail in a way worth seeing before anything ships.
+#
+# CREDENTIAL: pushing to the fork needs a PAT with contents:write on
+# indiagrams/libtailscale, stored as the LIBTAILSCALE_PAT secret. Without it
+# this workflow stops immediately and tells you what to do by hand — it does
+# not half-finish.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'tailscale.com version to move to (e.g. v1.104.0)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Build and validate, but do not push the fork branch or open a PR'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: tailscale-bump
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: prepare bump PR
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+      NEW_VERSION: ${{ inputs.version }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      FORK_REPO: ${{ vars.LIBTAILSCALE_REPO || 'indiagrams/libtailscale' }}
+    steps:
+      - name: validate inputs and credentials
+        env:
+          PAT: ${{ secrets.LIBTAILSCALE_PAT }}
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "$NEW_VERSION" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::version must look like v1.104.0 (got '$NEW_VERSION')"
+            exit 1
+          fi
+          if [ -z "${PAT:-}" ] && [ "$DRY_RUN" != "true" ]; then
+            echo "::error::LIBTAILSCALE_PAT is not set."
+            echo "::error::This workflow must push a branch to $FORK_REPO, which GITHUB_TOKEN cannot reach."
+            echo "::error::Create a fine-grained PAT with contents:write on that repo and add it as the"
+            echo "::error::LIBTAILSCALE_PAT secret, or re-run with dry_run=true to build without pushing."
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version-file: vendor/libtailscale/go.mod
+          cache: false
+
+      - name: bump tailscale.com in the libtailscale fork
+        id: bump
+        working-directory: vendor/libtailscale
+        run: |
+          set -euo pipefail
+          OLD="$(awk '/^require tailscale.com /{print $3}' go.mod)"
+          echo "old=$OLD" >> "$GITHUB_OUTPUT"
+          if [ "$OLD" = "$NEW_VERSION" ]; then
+            echo "::error::already pinned to $NEW_VERSION — nothing to do"
+            exit 1
+          fi
+          echo "Bumping tailscale.com $OLD -> $NEW_VERSION"
+          go get "tailscale.com@${NEW_VERSION}"
+          go mod tidy
+          # Prove the bindings still compile against the new tsnet before
+          # spending eight minutes on the xcframework.
+          go build ./...
+          git diff --stat
+
+      # The tracing patch (b50094a) lives in swift/, which `go get` cannot
+      # touch — but if it ever goes missing the sandbox guard loses its signal,
+      # so fail here rather than discover it in CI later.
+      - name: assert the carried tracing patch survived
+        working-directory: vendor/libtailscale
+        run: |
+          set -euo pipefail
+          if grep -rq 'TailscaleKit\] init: tailscale_start' swift/; then
+            echo "OK: NSLog tracing patch present"
+          else
+            echo "::error::The [TailscaleKit] NSLog tracing patch is missing from the fork."
+            echo "::error::macos-sandbox-check.yml greps for it; without it that guard goes blind."
+            echo "::error::Restore commit b50094a in $FORK_REPO before bumping."
+            exit 1
+          fi
+
+      - name: build the xcframework from source
+        run: |
+          set -o pipefail
+          bash tailscale/build-tailscalekit.sh 2>&1 | tail -30
+
+      - name: validate the xcframework
+        run: bash tailscale/validate-xcframework.sh
+
+      - name: build the app on both generators
+        run: |
+          set -o pipefail
+          brew install xcodegen
+          cd app && xcodegen generate && cd ..
+          APP_NAME="${{ vars.APP_NAME || 'TailnetDemo' }}"
+          xcodebuild build -project "app/${APP_NAME}.xcodeproj" -scheme "${APP_NAME}-iOS" \
+            -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tail -15
+          xcodebuild build -project "app/${APP_NAME}.xcodeproj" -scheme "${APP_NAME}-macOS" \
+            -configuration Debug -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tail -15
+
+      - name: stop here on dry run
+        if: inputs.dry_run
+        run: |
+          echo "dry_run: built and validated $NEW_VERSION successfully."
+          echo "Nothing was pushed and no PR was opened."
+
+      - name: push the fork branch
+        if: ${{ !inputs.dry_run }}
+        working-directory: vendor/libtailscale
+        env:
+          PAT: ${{ secrets.LIBTAILSCALE_PAT }}
+        run: |
+          set -euo pipefail
+          BRANCH="bump/tailscale-${NEW_VERSION}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add go.mod go.sum
+          git commit -m "chore: bump tailscale.com ${{ steps.bump.outputs.old }} -> ${NEW_VERSION}"
+          git push "https://x-access-token:${PAT}@github.com/${FORK_REPO}.git" "$BRANCH"
+          echo "FORK_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "FORK_BRANCH=$BRANCH" >> "$GITHUB_ENV"
+
+      - name: open the bump PR
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OLD_VERSION: ${{ steps.bump.outputs.old }}
+        run: |
+          set -euo pipefail
+          BRANCH="bump/tailscale-${NEW_VERSION}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add vendor/libtailscale
+          git commit -m "chore(tailscale): bump embedded tsnet to ${NEW_VERSION}"
+          git push -u origin "$BRANCH"
+
+          gh pr create --title "chore(tailscale): bump embedded tsnet to ${NEW_VERSION}" --body "$(cat <<PRBODY
+          Prepared automatically by \`tailscale-bump.yml\`. **Nothing has been published.**
+
+          | | |
+          | --- | --- |
+          | tailscale.com | \`${OLD_VERSION}\` → \`${NEW_VERSION}\` |
+          | fork branch | \`${FORK_REPO}@${FORK_BRANCH}\` |
+
+          ### What the workflow already verified
+
+          - \`go build ./...\` in the fork — the bindings still compile against the new tsnet
+          - the carried \`[TailscaleKit]\` tracing patch is still present (the sandbox guard greps for it)
+          - \`build-tailscalekit.sh\` completed, including its hard-fail patch step for tailscale#20985
+          - \`validate-xcframework.sh\` — all checks
+          - the app builds on both XcodeGen and Tuist, iOS and macOS
+
+          ### What a human still has to do
+
+          1. **Merge the fork branch first.** \`${FORK_REPO}@${FORK_BRANCH}\` is pushed but not merged. This PR's submodule pointer references it, so merging here without merging there leaves a dangling pin.
+          2. **Check the release notes** for anything affecting userspace tsnet or the SOCKS5 loopback path.
+          3. **Let \`macos-sandbox-check\` run.** It is the only job that exercises a *signed*, sandboxed build — the configuration in which a real bug once hid while every other check was green.
+
+          Publishing the xcframework release happens separately, after this merges.
+          PRBODY
+          )"

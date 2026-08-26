@@ -1,0 +1,157 @@
+name: release-xcframework
+
+# Publishes TailscaleKit.xcframework.zip as a GitHub Release for whatever
+# version is currently pinned.
+#
+# Trigger: a push to main that moves the vendor/libtailscale pointer — i.e. a
+# bump PR was reviewed and merged. So publication is gated on a human merge,
+# never on a timer.
+#
+# Idempotent: if a release already exists for the pinned version it stops
+# without touching it. Re-running is safe, and a merge that does not change the
+# version is a no-op.
+#
+# This is deliberately separate from release.yml, which is apple-shipkit's
+# TestFlight pipeline and has nothing to do with this artifact.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'vendor/libtailscale'
+      - 'tailscale/**'
+      - '.github/workflows/release-xcframework.yml'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Rebuild and replace the release even if the tag already exists'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-xcframework
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ANALYTICS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: true
+
+      - name: resolve the tag from the pinned version
+        id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION="$(awk '/^require tailscale.com /{print $3}' vendor/libtailscale/go.mod)"
+          if [ -z "$VERSION" ]; then
+            echo "::error::could not read tailscale.com version from vendor/libtailscale/go.mod"
+            exit 1
+          fi
+          TAG="tailscalekit-${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            if [ "${{ inputs.force }}" = "true" ]; then
+              echo "exists=replace" >> "$GITHUB_OUTPUT"
+              echo "$TAG exists; force=true, will replace the asset."
+            else
+              echo "exists=skip" >> "$GITHUB_OUTPUT"
+              echo "$TAG already published — nothing to do."
+            fi
+          else
+            echo "exists=create" >> "$GITHUB_OUTPUT"
+            echo "Will publish $TAG"
+          fi
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        if: steps.tag.outputs.exists != 'skip'
+        with:
+          go-version-file: vendor/libtailscale/go.mod
+          cache: false
+
+      - name: build the xcframework
+        if: steps.tag.outputs.exists != 'skip'
+        run: |
+          set -o pipefail
+          bash tailscale/build-tailscalekit.sh 2>&1 | tail -30
+
+      # Never publish an artifact that has not passed the checks Apple rejects
+      # for. These fail at upload time, not build time, which is the whole
+      # reason the validator exists.
+      - name: validate before publishing
+        if: steps.tag.outputs.exists != 'skip'
+        run: bash tailscale/validate-xcframework.sh
+
+      - name: package
+        if: steps.tag.outputs.exists != 'skip'
+        run: |
+          set -euo pipefail
+          cd vendor
+          cp "$GITHUB_WORKSPACE/vendor/libtailscale/LICENSE" LICENSE-tailscale-BSD-3-Clause.txt 2>/dev/null || true
+          cat > README.txt <<'EOT'
+          TailscaleKit.xcframework
+          Built by tailscale/build-tailscalekit.sh in indiagrams/embedded-tailscale-ios.
+
+          Unsigned by design — your app signs it on embed (set it to "Embed & Sign").
+          Slices: ios-arm64, ios-arm64_x86_64-simulator, macos-arm64.
+          PrivacyInfo.xcprivacy is injected into both iOS slices (ITMS-91053).
+          EOT
+          zip -qry "$RUNNER_TEMP/TailscaleKit.xcframework.zip" \
+            TailscaleKit.xcframework README.txt LICENSE-tailscale-BSD-3-Clause.txt
+          ls -lh "$RUNNER_TEMP/TailscaleKit.xcframework.zip"
+
+      - name: publish
+        if: steps.tag.outputs.exists != 'skip'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+          VERSION: ${{ steps.tag.outputs.version }}
+          MODE: ${{ steps.tag.outputs.exists }}
+        run: |
+          set -euo pipefail
+          NOTES="$(cat <<EOT
+          Prebuilt \`TailscaleKit.xcframework\`, built from \`tailscale.com $VERSION\`.
+
+          Upstream libtailscale ships no prebuilt binary, so this is the artifact that
+          makes adoption a drag-and-drop rather than a Go toolchain setup.
+
+          **Unsigned by design** — your app signs it on embed. Set it to **Embed & Sign**.
+
+          | | |
+          | --- | --- |
+          | tailscale.com | \`$VERSION\` |
+          | slices | \`ios-arm64\`, \`ios-arm64_x86_64-simulator\`, \`macos-arm64\` |
+
+          Validated before publishing: privacy manifests present in both iOS slices
+          (ITMS-91053), no symlinks in iOS slices, and no vendor team ID left in the
+          signature ([tailscale#15802](https://github.com/tailscale/tailscale/issues/15802)).
+
+          \`\`\`bash
+          gh release download $TAG -p 'TailscaleKit.xcframework.zip' -D /tmp
+          unzip -q /tmp/TailscaleKit.xcframework.zip -d vendor/
+          \`\`\`
+          EOT
+          )"
+          if [ "$MODE" = "replace" ]; then
+            gh release upload "$TAG" "$RUNNER_TEMP/TailscaleKit.xcframework.zip" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$TAG" "$RUNNER_TEMP/TailscaleKit.xcframework.zip" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "TailscaleKit.xcframework — tailscale.com $VERSION" \
+              --notes "$NOTES"
+          fi
+          echo "Published $TAG"
