@@ -15,8 +15,8 @@ app/macOS/Generated-Info.plist
 
 # XcodeGen-generated project (regenerated from project.yml)
 # Tuist-generated project + workspace + cache (regenerated from app/Project.swift)
-app/HelloApp.xcodeproj
-app/HelloApp.xcworkspace
+app/TailnetDemo.xcodeproj
+app/TailnetDemo.xcworkspace
 app/Derived/
 .tuist/
 
@@ -69,3 +69,10 @@ ehthumbs.db
 release-notes.md
 .bootstrap.env
 .claude/
+
+# Built by tailscale/build-tailscalekit.sh (~50MB of Go-compiled slices).
+# Deliberately not committed: the pipeline that produces it IS the reference.
+vendor/TailscaleKit.xcframework/
+vendor/libtailscale/libtailscale*.a
+vendor/libtailscale/libtailscale*.h
+vendor/libtailscale/swift/build/

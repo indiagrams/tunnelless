@@ -50,7 +50,7 @@ jobs:
     # specific to this repo. Forks have neither the target repo permissions
     # nor the secret, so a fork run would fail at the PAT-verify step.
     # Skipped runs surface as a single grey check, not red errors.
-    if: github.repository == 'indiagrams/apple-shipkit'
+    if: github.repository == 'indiagrams/embedded-tailscale-ios'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:

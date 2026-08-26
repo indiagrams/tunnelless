@@ -14,7 +14,7 @@
 #           database id so the existing fine-grained PAT keeps working (G12)
 #         - nuke: delete + recreate the certs repo (PAT scope must be
 #           updated manually after; see G12 in CONTINUOUS-VALIDATION.md)
-#   5. Re-fork the smoketest from indiagrams/apple-shipkit
+#   5. Re-fork the smoketest from indiagrams/embedded-tailscale-ios
 #   6. Run bin/rename.sh with the chosen --generator
 #   7. Run make bootstrap (toolchain), commit, push, set branch protection
 #   8. Materialize .bootstrap.env in the new clone, pre-filled with

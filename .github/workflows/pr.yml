@@ -244,8 +244,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-iOS" \
+            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-iOS" \
             -configuration Debug \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
@@ -261,12 +261,12 @@ jobs:
           # `xcodebuild test` runs the scheme's Test action, which the
           # generator manifest (app/project.yml or app/Project.swift) wires
           # to <APP_NAME>UITests + <APP_NAME>Tests (these are renamed at fork creation
-          # by bin/rename.sh — the literal names in apple-shipkit are HelloAppUITests
-          # + HelloAppTests). Test action requires a concrete simulator destination
+          # by bin/rename.sh — the literal names in apple-shipkit are TailnetDemoUITests
+          # + TailnetDemoTests). Test action requires a concrete simulator destination
           # (generic/* doesn't work).
           xcodebuild test \
-            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-iOS" \
+            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-iOS" \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
@@ -282,8 +282,8 @@ jobs:
           # macOS test destination is bare `platform=macOS` — `xcodebuild
           # test` doesn't accept `generic/platform=macOS`.
           xcodebuild test \
-            -project "app/${{ vars.APP_NAME || 'HelloApp' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'HelloApp' }}-macOS" \
+            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
+            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-macOS" \
             -configuration Debug \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" \

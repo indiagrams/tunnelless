@@ -63,9 +63,9 @@ if missing.any?
 end
 
 bundle_id = get.call("BUNDLE_ID")
-if bundle_id == "com.example.helloapp"
+if bundle_id == "com.indiagram.tailnetdemo"
   fail!(
-    "BUNDLE_ID is the template placeholder 'com.example.helloapp'.\n" \
+    "BUNDLE_ID is the template placeholder 'com.indiagram.tailnetdemo'.\n" \
     "Set it to your real bundle id in .bootstrap.env first.\n" \
     "If your fork is greenfield (new app, no existing App Store app), don't " \
     "run adopt — `make doctor` + `make all` is the greenfield path."

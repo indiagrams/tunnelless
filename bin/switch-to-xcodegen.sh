@@ -153,8 +153,8 @@ gate_project_yml_in_history() {
   PROJECT_YML_SHA=$(git log --all --diff-filter=AM --pretty=format:'%H' -- app/project.yml 2>/dev/null | head -1 || true)
   if [ -z "$PROJECT_YML_SHA" ]; then
     fail "app/project.yml not found in git history — this fork was never xcodegen-shaped.
-   Restoring manually requires fetching project.yml from indiagrams/apple-shipkit/main:
-     curl -fsSL https://raw.githubusercontent.com/indiagrams/apple-shipkit/main/app/project.yml > app/project.yml"
+   Restoring manually requires fetching project.yml from indiagrams/embedded-tailscale-ios/main:
+     curl -fsSL https://raw.githubusercontent.com/indiagrams/embedded-tailscale-ios/main/app/project.yml > app/project.yml"
   fi
   ok "app/project.yml found in commit ${PROJECT_YML_SHA:0:8}"
 }
@@ -195,10 +195,10 @@ mutate_restore_project_yml() {
   # On a renamed fork, the most recent project.yml in git history is the
   # un-renamed upstream template — because bin/rename.sh + bin/switch-to-
   # tuist.sh ran as one commit that DELETED project.yml (filtered out by
-  # --diff-filter=AM). The restored content carries HelloApp identity +
-  # TEAM_ID_PLACEHOLDER + com.example.helloapp, which then breaks every
+  # --diff-filter=AM). The restored content carries TailnetDemo identity +
+  # TEAM_ID_PLACEHOLDER + com.indiagram.tailnetdemo, which then breaks every
   # xcodebuild invocation (No signing certificate "...TEAM_ID_PLACEHOLDER",
-  # CODE_SIGN_ENTITLEMENTS references non-existent HelloApp.entitlements,
+  # CODE_SIGN_ENTITLEMENTS references non-existent TailnetDemo.entitlements,
   # etc.). Re-apply the fork's identity from .bootstrap.env, mirroring
   # what bin/rename.sh would have done.
   if [ -f .bootstrap.env ]; then
@@ -247,7 +247,7 @@ mutate_makefile() {
     fail "Makefile missing — unexpected repo state"
   fi
   sed -i '' 's|cd app && tuist generate --no-open|cd app \&\& xcodegen generate|g' Makefile
-  sed -i '' 's|Regenerate HelloApp.xcodeproj from app/Project.swift|Regenerate HelloApp.xcodeproj from app/project.yml|g' Makefile
+  sed -i '' 's|Regenerate TailnetDemo.xcodeproj from app/Project.swift|Regenerate TailnetDemo.xcodeproj from app/project.yml|g' Makefile
   ok "Makefile: tuist generate --no-open → xcodegen generate"
 }
 

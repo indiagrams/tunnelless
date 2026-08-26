@@ -2,7 +2,7 @@
 #
 # Forking your own app from this template? The path is:
 #
-#   1. gh repo create my-app --template indiagrams/apple-shipkit --public --clone
+#   1. gh repo create my-app --template indiagrams/embedded-tailscale-ios --public --clone
 #   2. cd my-app && make bootstrap   # one-time dev-env setup (brew + ruby gems + xcodegen + git hooks)
 #   3. make init                     # scaffolds .bootstrap.env (auto-fills GH_ORG/GH_APP_REPO from origin)
 #   4. $EDITOR .bootstrap.env        # fill in APP_NAME, BUNDLE_ID, Apple credentials, RELEASE_MODE
@@ -75,7 +75,7 @@ help:
 	@echo "  check-ios        iOS device build (primary signal)"
 	@echo "  check-sim        iOS Simulator build (backup signal)"
 	@echo "  check-macos      macOS build"
-	@echo "  generate         Regenerate HelloApp.xcodeproj from app/project.yml"
+	@echo "  generate         Regenerate TailnetDemo.xcodeproj from app/project.yml"
 	@echo "  icons            Regenerate macOS AppIcon.iconset + AppIcon.icns from 1024 source"
 	@echo "  screenshots      Capture App Store screenshots (iOS + macOS) to fastlane/screenshots/"
 	@echo "  release-dryrun   fastlane release tag:v0.0.0 skip_upload:true skip_tag:true"

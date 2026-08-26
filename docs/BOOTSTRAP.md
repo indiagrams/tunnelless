@@ -10,7 +10,7 @@ Apple and GitHub deliberately don't expose to APIs.
 
 ```bash
 # 1. Fork from template
-gh repo create my-app --template indiagrams/apple-shipkit --public --clone
+gh repo create my-app --template indiagrams/embedded-tailscale-ios --public --clone
 cd my-app
 
 # 2. One-time dev-env setup (brew + ruby gems + xcodegen + git hooks)
@@ -143,13 +143,13 @@ Mode key: ⚪ both, 🅒 ci-only, 🅛 local-only, 🍎 macOS-only.
 | 1 | `CheckAppleCreds` | ⚪ | Validates `.p8` + key id + issuer id by probing ASC API |
 | 2 | `CheckGHCreds` | ⚪ | CI mode: probes `gh auth status`. Local mode: no-op (gh CLI not used at ship time). |
 | 3 | `RemoteMatches` | ⚪ | Verifies `git remote get-url origin` matches `GH_ORG/GH_APP_REPO` |
-| 4 | `RenameStub` | ⚪ | Runs `bin/rename.sh` (HelloApp → APP_NAME) + `bin/verify-rename.sh` |
+| 4 | `RenameStub` | ⚪ | Runs `bin/rename.sh` (TailnetDemo → APP_NAME) + `bin/verify-rename.sh` |
 | 5 | `BrewBootstrap` | ⚪ | `make bootstrap` (brew bundle + lefthook + xcodegen/tuist + bundler) |
 | 6 | `Icon1024` | ⚪ | If `ICON_1024_PATH` set, copies it to the iOS asset catalog (tree mutation lands before `InitialPush`) |
 | 7 | `MakeIcons` | 🍎 | `make icons` — regenerates the macOS `.icns` from the 1024 PNG. Runs only when `PLATFORMS` includes `macos`. |
 | 8 | `InitialPush` | ⚪ | First commit (rename + icons) pushed to `origin/main` |
 | 9 | `BranchProtection` | ⚪ | `bin/setup-github.sh` (required checks: swiftlint + swiftformat + xcodegen iOS device/sim + macOS + tuist parity, squash-only, linear history) |
-| 10 | `GHSecrets` | 🅒 | Generates `KEYCHAIN_PASSWORD` if absent, encodes the `.p8`, sets the 5 GH Secrets (`KEYCHAIN_PASSWORD`, `ASC_API_KEY_ID`, `ASC_API_KEY_ISSUER_ID`, `ASC_API_KEY_P8_BASE64`, `FASTLANE_TEAM_ID`) AND the 2 GH Variables (`APP_NAME`, `BUNDLE_ID`) on the app repo. The Variables are non-sensitive identity strings read by `release.yml` + `pr.yml` at workflow-level `env:` blocks via `${{ vars.APP_NAME }}` / `${{ vars.BUNDLE_ID }}`. Without them, `release.yml` fails fast at the "Compute release tag" step with `vars.BUNDLE_ID is not set on this repo` and `pr.yml` silently falls back to the literal `'HelloApp'` scheme name which won't match a renamed fork's xcodeproj. |
+| 10 | `GHSecrets` | 🅒 | Generates `KEYCHAIN_PASSWORD` if absent, encodes the `.p8`, sets the 5 GH Secrets (`KEYCHAIN_PASSWORD`, `ASC_API_KEY_ID`, `ASC_API_KEY_ISSUER_ID`, `ASC_API_KEY_P8_BASE64`, `FASTLANE_TEAM_ID`) AND the 2 GH Variables (`APP_NAME`, `BUNDLE_ID`) on the app repo. The Variables are non-sensitive identity strings read by `release.yml` + `pr.yml` at workflow-level `env:` blocks via `${{ vars.APP_NAME }}` / `${{ vars.BUNDLE_ID }}`. Without them, `release.yml` fails fast at the "Compute release tag" step with `vars.BUNDLE_ID is not set on this repo` and `pr.yml` silently falls back to the literal `'TailnetDemo'` scheme name which won't match a renamed fork's xcodeproj. |
 | 11 | `RegisterAppId` | ⚪ | `fastlane register_app_id` (idempotent — Spaceship `BundleId.create` rescues `ALREADY_EXISTS`) |
 | 12 | `VerifyAscApp` | ⚪ | Probes for the App record. **Fails loud with web-UI instructions if missing** — Apple disallows `POST /apps`, so this is the one human-gated step inside the pipeline |
 | 13 | `LocalKeychainCerts` | 🅛 | Auto-mints any missing local-mode cert types (Apple Distribution, Apple Development, and — when shipping macOS — 3rd Party Mac Developer Installer) via `fastlane cert` into `login.keychain-db`. New in v1.4 — replaces the v1.3 hard-blocker requiring manual remediation. |

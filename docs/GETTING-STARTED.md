@@ -3,9 +3,9 @@
 > **Goal of this guide:** if you've never shipped an iOS or Mac app before, by the end of it you will have one running on your phone (or Mac) via TestFlight. About 30–60 minutes of focused time, $99/year for Apple Developer Program, and a Mac to build on (Xcode and the rest of Apple's build tools only run on macOS — you need a Mac even for an iPhone-only app).
 
 <p align="center">
-  <img src="screenshots/ios-home.png"   alt="HelloApp template running on iOS Simulator — hammer icon, 'HelloApp' title, and 'Rename me' instruction visible" width="260">
+  <img src="screenshots/ios-home.png"   alt="TailnetDemo template running on iOS Simulator — hammer icon, 'TailnetDemo' title, and 'Rename me' instruction visible" width="260">
   &nbsp;&nbsp;
-  <img src="screenshots/macos-home.png" alt="HelloApp template running natively on macOS — same hammer icon, title, and rename instruction"                       width="500">
+  <img src="screenshots/macos-home.png" alt="TailnetDemo template running natively on macOS — same hammer icon, title, and rename instruction"                       width="500">
 </p>
 
 That's the starter app you'll customize into yours.
@@ -99,7 +99,7 @@ git --version          # git version 2.x
 If anything is missing, this template ships a one-shot checker — clone temporarily and run it:
 
 ```bash
-git clone https://github.com/indiagrams/apple-shipkit.git /tmp/preflight \
+git clone https://github.com/indiagrams/embedded-tailscale-ios.git /tmp/preflight \
   && bash /tmp/preflight/bin/preflight.sh \
   && rm -rf /tmp/preflight
 ```
@@ -166,7 +166,7 @@ chmod 600 ~/.config/secrets/AuthKey_*.p8
 
 ```bash
 # Pick a name for your repo (lowercase, hyphens):
-gh repo create my-cool-app --template indiagrams/apple-shipkit --public --clone
+gh repo create my-cool-app --template indiagrams/embedded-tailscale-ios --public --clone
 cd my-cool-app
 ```
 
@@ -178,7 +178,7 @@ This creates `https://github.com/<your-username>/my-cool-app`, copies the templa
 
 ## Step 6 — Customize your app (~5 minutes)
 
-The template ships with a starter app called **HelloApp**. Time to make it yours.
+The template ships with a starter app called **TailnetDemo**. Time to make it yours.
 
 First, run the one-time dev-env setup. This installs the Ruby gems (fastlane et al.), Homebrew packages (xcodegen, lefthook, etc.), regenerates the Xcode project, and wires up the pre-push git hook. Takes ~30-90 seconds depending on what's already installed:
 
@@ -325,7 +325,7 @@ This runs the whole pipeline:
 You'll see ~5–10 minutes of build output. The release tool does roughly:
 
 ```
-✓ Renaming HelloApp → MyCoolApp
+✓ Renaming TailnetDemo → MyCoolApp
 ✓ Generating Xcode project
 ✓ Provisioning iOS Distribution cert
 ✓ Provisioning Mac Installer Distribution cert
@@ -395,7 +395,7 @@ Most first-time failures fall into a few buckets. Here's what to do:
 | `make screenshots` fails with "SmokeAppMacOSUITests-Runner is damaged and can't be opened" | Xcode carries `com.apple.quarantine` and the bit transitively propagates to UI-test runner bundles | The script handles this automatically (strips + ad-hoc re-signs the runner before launch). If you still see it, your Xcode install may be unusual — try `sudo xattr -dr com.apple.quarantine /Applications/Xcode.app` for a one-shot clear |
 | Random `make ship` failure during CI mode | Check the latest entries in [CONTINUOUS-VALIDATION.md](CONTINUOUS-VALIDATION.md) — a multi-entry catalog of known shipping-pipeline gotchas |
 
-If something isn't on this list, [open an issue](https://github.com/indiagrams/apple-shipkit/issues/new) with the full `make ship` output. The maintainers care; this template exists to absorb new gotchas as they're discovered.
+If something isn't on this list, [open an issue](https://github.com/indiagrams/embedded-tailscale-ios/issues/new) with the full `make ship` output. The maintainers care; this template exists to absorb new gotchas as they're discovered.
 
 ---
 

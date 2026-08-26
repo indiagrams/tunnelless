@@ -28,12 +28,12 @@ The template's `make doctor` step `Register Bundle ID in Apple Developer Portal`
 ### 1. Fork the template + rename
 
 ```bash
-gh repo create my-existing-app --template=indiagrams/apple-shipkit --private --clone
+gh repo create my-existing-app --template=indiagrams/embedded-tailscale-ios --private --clone
 cd my-existing-app
 bin/rename.sh MyExistingApp com.theirteam.myexistingapp "My Existing App" --email=you@example.com
 ```
 
-`bin/rename.sh` substitutes `HelloApp` → `MyExistingApp` and `com.example.helloapp` → your bundle id across the tree. After this step, your fork's identity matches your real app.
+`bin/rename.sh` substitutes `TailnetDemo` → `MyExistingApp` and `com.indiagram.tailnetdemo` → your bundle id across the tree. After this step, your fork's identity matches your real app.
 
 ### 2. Fill `.bootstrap.env`
 
@@ -186,7 +186,7 @@ FORCE=true make adopt   # overwrite even with uncommitted changes — destructiv
 
 | Error | Meaning | Fix |
 |---|---|---|
-| `BUNDLE_ID is the template placeholder 'com.example.helloapp'` | You haven't set BUNDLE_ID in `.bootstrap.env` | Edit `.bootstrap.env` with your real bundle id |
+| `BUNDLE_ID is the template placeholder 'com.indiagram.tailnetdemo'` | You haven't set BUNDLE_ID in `.bootstrap.env` | Edit `.bootstrap.env` with your real bundle id |
 | `no ASC App record found for bundle '...' on team ...` | Either bundle id is wrong, team id is wrong, or app exists on a different team | Verify both in ASC web UI: My Apps → app → App Information → Bundle ID; Account → Team |
 | `Uncommitted changes detected in fastlane/metadata` | Local edits would be lost on overwrite | `git commit` first, or `FORCE=true make adopt` |
 | `Missing required env vars: ASC_API_KEY_*` | `.bootstrap.env` is incomplete | Fill in all `ASC_API_KEY_*` fields; see [BOOTSTRAP.md](BOOTSTRAP.md) |

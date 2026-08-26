@@ -4,17 +4,17 @@
 > Code signing, GitHub Actions CI for PRs, mint-fresh certificates per CI release, TestFlight upload, App Store submission — all prewired.
 > Deliberately doesn't pick a UI framework, networking stack, or persistence layer.
 
-[![CI](https://github.com/indiagrams/apple-shipkit/actions/workflows/pr.yml/badge.svg)](https://github.com/indiagrams/apple-shipkit/actions/workflows/pr.yml)
+[![CI](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/pr.yml/badge.svg)](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/pr.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Swift 5.9](https://img.shields.io/badge/Swift-5.9-orange.svg)](https://swift.org)
 [![Discord](https://img.shields.io/badge/Discord-join%20chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/sExv9eKdA)
-[![Weekly canary (CI mode)](https://github.com/indiagrams/apple-shipkit/actions/workflows/canary-trigger.yml/badge.svg)](https://github.com/indiagrams/apple-shipkit/actions/workflows/canary-trigger.yml)
+[![Weekly canary (CI mode)](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/canary-trigger.yml/badge.svg)](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/canary-trigger.yml)
 [![Weekly canary (local mode)](https://github.com/indiagrams/ios-macos-smoketest/actions/workflows/canary-local-mode.yml/badge.svg)](https://github.com/indiagrams/ios-macos-smoketest/actions/workflows/canary-local-mode.yml)
 
 <p align="center">
-  <img src="docs/screenshots/ios-home.png"   alt="HelloApp template running on iOS Simulator — hammer icon, 'HelloApp' title, and 'Rename me' instruction visible" width="260">
+  <img src="docs/screenshots/ios-home.png"   alt="TailnetDemo template running on iOS Simulator — hammer icon, 'TailnetDemo' title, and 'Rename me' instruction visible" width="260">
   &nbsp;&nbsp;
-  <img src="docs/screenshots/macos-home.png" alt="HelloApp template running natively on macOS — same hammer icon, title, and rename instruction"                       width="500">
+  <img src="docs/screenshots/macos-home.png" alt="TailnetDemo template running natively on macOS — same hammer icon, title, and rename instruction"                       width="500">
 </p>
 
 > **First time shipping an iOS or Mac app?** Start with **[docs/GETTING-STARTED.md](docs/GETTING-STARTED.md)** — every prerequisite, every Apple-side click, 30–60 minutes to your first TestFlight build.
@@ -88,13 +88,13 @@ The five-command journey hides:
 ### Fork extensibility (added 2026-05; v1.6.1)
 - **`fastlane/Fastfile.local` extension point** — forks add custom lanes (Slack hook, Crashlytics dSYM upload, Firebase App Distribution, internal-ticket bumps) in a fork-owned file that survives upstream syncs. Template Fastfile imports it at EOF; `after_all` and `error` are reserved for forks, `before_all` is template-claimed. See [`fastlane/Fastfile.local.example`](fastlane/Fastfile.local.example) for seven copy-pasteable patterns.
 - **Env-driven Fastfile constants** — `APP_NAME`, `APP_IDENTIFIER`, and downstream `IOS_SCHEME` / `MACOS_SCHEME` / `IPA_NAME_PATTERN` / `PKG_NAME_PATTERN` all resolve from `.bootstrap.env` at lane-resolution time, with `ENV` override for CI. Forks no longer sed-substitute Fastfile literals during rename; the file stays byte-equivalent across template and every fork.
-- **Env-driven `pr.yml`** — workflow's `xcodebuild -project / -scheme` arguments resolve `${{ vars.APP_NAME || 'HelloApp' }}`. Forks set repo `vars.APP_NAME` once; the workflow file stays byte-equivalent across template and forks for safe `cp`-mirror.
+- **Env-driven `pr.yml`** — workflow's `xcodebuild -project / -scheme` arguments resolve `${{ vars.APP_NAME || 'TailnetDemo' }}`. Forks set repo `vars.APP_NAME` once; the workflow file stays byte-equivalent across template and forks for safe `cp`-mirror.
 - **Fork-friendly CI timeouts** — `pr.yml` job-level cap 60min (was 15); test steps inherit the job cap so a fork's 30-min test suite doesn't hit a template-tuned ceiling. Infrastructure-only steps (build, simulator pre-boot) keep tight bounds so stuck infrastructure fails fast without constraining user test duration.
 - **Single Sat 07:00 UTC canary cron** in [`canary-trigger.yml`](.github/workflows/canary-trigger.yml) — orchestrates three sequential ships (CI xcodegen → CI tuist → local-mode). Forks inherit no cron (the trigger file is template-only); each fork wires its own schedule when ready.
 
 ### Existing-app adoption
-- **`make adopt`** — pulls existing App Store metadata + screenshots from ASC into the local tree before first ship. Single command, idempotent, ~30-60 sec total. Closes the catastrophic "fork the template, run `make submit`, clobber my live App Store listing with template placeholders" failure mode. Bundle ID + Team ID + ASC API creds in `.bootstrap.env` is all that's needed; the lane verifies the ASC App record exists, downloads all locales of metadata via `fastlane deliver download_metadata`, downloads all screenshots via `fastlane deliver download_screenshots`, reports the live marketing version for the user to sync into `app/project.yml`. Skipped for greenfield forks (BUNDLE_ID=`com.example.helloapp` placeholder triggers a fail-loud guard). `make doctor`'s metadata-placeholder warning surfaces the `make adopt` hint when the fingerprint matches an existing-app fork.
-- **Hard-stop guard against placeholder bundle IDs** — `bin/adopt.rb` refuses to run if `BUNDLE_ID=com.example.helloapp` or if there are uncommitted changes in `fastlane/metadata` / `fastlane/screenshots`. `FORCE=true make adopt` overrides the latter for deliberate re-syncs.
+- **`make adopt`** — pulls existing App Store metadata + screenshots from ASC into the local tree before first ship. Single command, idempotent, ~30-60 sec total. Closes the catastrophic "fork the template, run `make submit`, clobber my live App Store listing with template placeholders" failure mode. Bundle ID + Team ID + ASC API creds in `.bootstrap.env` is all that's needed; the lane verifies the ASC App record exists, downloads all locales of metadata via `fastlane deliver download_metadata`, downloads all screenshots via `fastlane deliver download_screenshots`, reports the live marketing version for the user to sync into `app/project.yml`. Skipped for greenfield forks (BUNDLE_ID=`com.indiagram.tailnetdemo` placeholder triggers a fail-loud guard). `make doctor`'s metadata-placeholder warning surfaces the `make adopt` hint when the fingerprint matches an existing-app fork.
+- **Hard-stop guard against placeholder bundle IDs** — `bin/adopt.rb` refuses to run if `BUNDLE_ID=com.indiagram.tailnetdemo` or if there are uncommitted changes in `fastlane/metadata` / `fastlane/screenshots`. `FORCE=true make adopt` overrides the latter for deliberate re-syncs.
 
 ### Continuous validation (against real Apple infrastructure)
 - **PR-time, on any change to `bin/lib/bootstrap.rb` / `bin/doctor.rb` / `fastlane/Fastfile` / `.bootstrap.env.example` / `Makefile`**: bootstrap doctor matrix (xcodegen | tuist × ci | local — 4 cells). Catches doctor/bootstrap pipeline regressions before merge. Plus weekly hermetic regression tests (parser, bundle-guard) Mondays 07:00 UTC against runner-image drift.
@@ -186,7 +186,7 @@ Each step is its own fastlane lane in `fastlane/Fastfile`. Read the file — it'
 │   ├── verify-testflight.rb     # `make verify` driver
 │   ├── adopt.rb                 # `make adopt` driver (existing-app forks)
 │   ├── lib/bootstrap.rb         # the orchestration framework (18-step pipeline)
-│   ├── rename.sh                # rename HelloApp → YourApp
+│   ├── rename.sh                # rename TailnetDemo → YourApp
 │   ├── switch-to-tuist.sh       # one-way XcodeGen → Tuist switch
 │   ├── setup-github.sh          # branch protection + squash-only + required checks
 │   ├── preflight.sh             # check developer-tool prerequisites
@@ -240,12 +240,12 @@ Full catalog of CI-specific gotchas: [docs/CONTINUOUS-VALIDATION.md](docs/CONTIN
 
 ## Continuous validation
 
-[![Weekly canary (CI mode)](https://github.com/indiagrams/apple-shipkit/actions/workflows/canary-trigger.yml/badge.svg)](https://github.com/indiagrams/apple-shipkit/actions/workflows/canary-trigger.yml)
+[![Weekly canary (CI mode)](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/canary-trigger.yml/badge.svg)](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/canary-trigger.yml)
 [![Weekly canary (local mode)](https://github.com/indiagrams/ios-macos-smoketest/actions/workflows/canary-local-mode.yml/badge.svg)](https://github.com/indiagrams/ios-macos-smoketest/actions/workflows/canary-local-mode.yml)
 
 The two badges above reflect the most recent canary runs:
 
-- **CI-mode canary** ([`canary-trigger.yml`](https://github.com/indiagrams/apple-shipkit/actions/workflows/canary-trigger.yml)) — exercises the CI-mode mint-fresh shipping path used by forks with `RELEASE_MODE=ci` (release.yml mints fresh certs per run, ships, then revokes them). Both `dispatch (xcodegen)` and `dispatch (tuist)` cells real-ship to TestFlight on the [smoketest fork](https://github.com/indiagrams/ios-macos-smoketest).
+- **CI-mode canary** ([`canary-trigger.yml`](https://github.com/indiagrams/embedded-tailscale-ios/actions/workflows/canary-trigger.yml)) — exercises the CI-mode mint-fresh shipping path used by forks with `RELEASE_MODE=ci` (release.yml mints fresh certs per run, ships, then revokes them). Both `dispatch (xcodegen)` and `dispatch (tuist)` cells real-ship to TestFlight on the [smoketest fork](https://github.com/indiagrams/ios-macos-smoketest).
 - **Local-mode canary** ([`canary-local-mode.yml` on the smoketest fork](https://github.com/indiagrams/ios-macos-smoketest/actions/workflows/canary-local-mode.yml)) — exercises the local-mode sigh-based shipping path used by forks with `RELEASE_MODE=local` (the default). Mints throwaway certs in the same Apple team, ships to TestFlight, revokes the certs on `always()` so net team-cert delta per run is 0. The workflow file lives on apple-shipkit as a template (`schedule:` block commented out); only the smoketest has it uncommented, so the badge tracks runs there.
 
 Either badge red → at least one cell failed. Click the badge to see which cell + why. Per-cell history (xcodegen vs tuist) lives in each workflow's run-by-run breakdown.
@@ -278,8 +278,8 @@ Got stuck on Apple Developer enrollment? Got a cryptic rejection code? Want to k
 [![Discord](https://img.shields.io/badge/Discord-join%20chat-5865F2?logo=discord&logoColor=white)](https://discord.gg/sExv9eKdA)
 
 - **Discord** — quick questions, "is this a known issue", showing off what you shipped: [discord.gg/sExv9eKdA](https://discord.gg/sExv9eKdA)
-- **GitHub Issues** — actionable bugs in the template (failed `make doctor`, missing prereq check, broken script): [github.com/indiagrams/apple-shipkit/issues](https://github.com/indiagrams/apple-shipkit/issues)
-- **GitHub Discussions** — design decisions, "should the template do X", longer threads: [github.com/indiagrams/apple-shipkit/discussions](https://github.com/indiagrams/apple-shipkit/discussions)
+- **GitHub Issues** — actionable bugs in the template (failed `make doctor`, missing prereq check, broken script): [github.com/indiagrams/embedded-tailscale-ios/issues](https://github.com/indiagrams/embedded-tailscale-ios/issues)
+- **GitHub Discussions** — design decisions, "should the template do X", longer threads: [github.com/indiagrams/embedded-tailscale-ios/discussions](https://github.com/indiagrams/embedded-tailscale-ios/discussions)
 
 First-time shippers especially welcome. Most of the people in this template's lineage learned by getting stuck on the same things you're about to get stuck on.
 

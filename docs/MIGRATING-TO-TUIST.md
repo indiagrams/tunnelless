@@ -27,8 +27,8 @@ is the only section you really need.
 > manifests (`Tuist.swift` + `app/Project.swift` alongside
 > `app/project.yml`) and CI verifies both stay in sync on every PR
 > via the 6-job matrix (3 XcodeGen + 3 Tuist parity). Tracked in
-> [#34](https://github.com/indiagrams/apple-shipkit/issues/34) +
-> [#38](https://github.com/indiagrams/apple-shipkit/issues/38).
+> [#34](https://github.com/indiagrams/embedded-tailscale-ios/issues/34) +
+> [#38](https://github.com/indiagrams/embedded-tailscale-ios/issues/38).
 >
 > Validated end-to-end against this repo: a throwaway clone, ran
 > `bin/switch-to-tuist.sh`, then `make check` / `make check-sim` /
@@ -164,19 +164,19 @@ Key translation points from `project.yml` → `Project.swift`:
 | target `info.path` + `info.properties` | `Target.target(infoPlist: .extendingDefault(with: [...]))` — auto-generates the .plist |
 | target `sources: [path: ...]` | `Target.target(sources: ["Shared/**", "iOS/**"])` |
 | `excludes: ["Resources"]` | `.glob("macOS/**", excluding: ["macOS/Resources/**"])` |
-| `info.properties.CFBundleDisplayName: HelloApp` | `infoPlist: .extendingDefault(with: ["CFBundleDisplayName": "HelloApp", ...])` |
-| `CODE_SIGN_ENTITLEMENTS: iOS/HelloApp.entitlements` | `entitlements: .file(path: "iOS/HelloApp.entitlements")` |
+| `info.properties.CFBundleDisplayName: TailnetDemo` | `infoPlist: .extendingDefault(with: ["CFBundleDisplayName": "TailnetDemo", ...])` |
+| `CODE_SIGN_ENTITLEMENTS: iOS/TailnetDemo.entitlements` | `entitlements: .file(path: "iOS/TailnetDemo.entitlements")` |
 | target-level `settings.base` | `Target.target(settings: .settings(base: [...]))` (overrides project-level) |
-| `dependencies: [target: HelloApp-iOS]` | `dependencies: [.target(name: "HelloApp-iOS")]` |
+| `dependencies: [target: TailnetDemo-iOS]` | `dependencies: [.target(name: "TailnetDemo-iOS")]` |
 | `postCompileScripts:` | `scripts: [TargetScript.post(...)]` (see gotcha below) |
 | `schemes.<name>.build.targets` | `Scheme.scheme(buildAction: .buildAction(targets: [...]))` |
 
 > **Gotcha — UI test targets must NOT be in `buildAction.targets`.** In
-> XcodeGen, `HelloAppUITests: [test]` declares the target builds for
+> XcodeGen, `TailnetDemoUITests: [test]` declares the target builds for
 > the test action only. The Tuist equivalent is **omitting** the UI
 > test target from `BuildAction.targets` (only include the main app
 > target there) and including it in `TestAction.targets`. If you put
-> the UI test target in both, `xcodebuild build -scheme HelloApp-iOS`
+> the UI test target in both, `xcodebuild build -scheme TailnetDemo-iOS`
 > will compile the UI tests under iOS device's strict-concurrency
 > setting and fail on `SnapshotHelper.swift`'s actor-isolation
 > warnings — the very thing the per-target
@@ -218,8 +218,8 @@ doc and the script fails CI immediately:
 ### `Brewfile`
 
 ```diff
--brew "xcodegen"        # app/project.yml → HelloApp.xcodeproj
-+cask "tuist"           # app/Project.swift → HelloApp.xcodeproj
+-brew "xcodegen"        # app/project.yml → TailnetDemo.xcodeproj
++cask "tuist"           # app/Project.swift → TailnetDemo.xcodeproj
 ```
 
 (If you went the mise route in Step 0, add a `mise.toml` instead and
@@ -300,18 +300,18 @@ Tuist generates a `Derived/` cache directory inside `app/` and an
 ```diff
  # XcodeGen-generated project (regenerated from project.yml)
 +# Tuist-generated project (regenerated from app/Project.swift)
- app/HelloApp.xcodeproj
-+app/HelloApp.xcworkspace
+ app/TailnetDemo.xcodeproj
++app/TailnetDemo.xcworkspace
 +app/Derived/
 +.tuist/
 ```
 
-(Keep the existing `app/HelloApp.xcodeproj` rule — Tuist still emits
+(Keep the existing `app/TailnetDemo.xcodeproj` rule — Tuist still emits
 the `.xcodeproj` for `xcodebuild` to consume.)
 
 ### `bin/rename.sh`
 
-The rename script substitutes `HelloApp`, `com.example.helloapp`, and
+The rename script substitutes `TailnetDemo`, `com.indiagram.tailnetdemo`, and
 the maintainer email across tracked files. After migration, those
 strings now live in `app/Project.swift` (replacing `app/project.yml`).
 The script's `git ls-files`-based grep already handles
@@ -320,9 +320,9 @@ before any rename. **But:** if you migrate first, then rename, verify
 with:
 
 ```bash
-git grep "com.example.helloapp" app/Project.swift   # should show 4 hits before rename
+git grep "com.indiagram.tailnetdemo" app/Project.swift   # should show 4 hits before rename
 bin/rename.sh YourApp com.your-org.yourapp 'Your App' --email=you@example.com
-git grep "com.example.helloapp" app/Project.swift   # should be empty after rename
+git grep "com.indiagram.tailnetdemo" app/Project.swift   # should be empty after rename
 ```
 
 If `bin/rename.sh` misses any literal in `Project.swift` that it caught
@@ -339,7 +339,7 @@ the script already covers. No edit required.
 ## Step 4 — Validate end-to-end
 
 The acceptance criterion for this migration (per
-[issue #34](https://github.com/indiagrams/apple-shipkit/issues/34))
+[issue #34](https://github.com/indiagrams/embedded-tailscale-ios/issues/34))
 is "`make check` passing post-migration on a fresh fork." Run all
 three signal paths:
 
@@ -355,7 +355,7 @@ make check-macos    # macOS
 # Confirm the macOS app got the hand-rolled .icns (not actool's broken 4-size)
 shasum -a 256 \
   app/macOS/Resources/AppIcon.icns \
-  ~/Library/Developer/Xcode/DerivedData/HelloApp-*/Build/Products/Debug/HelloApp_macOS.app/Contents/Resources/AppIcon.icns
+  ~/Library/Developer/Xcode/DerivedData/TailnetDemo-*/Build/Products/Debug/TailnetDemo_macOS.app/Contents/Resources/AppIcon.icns
 # Both hashes must match.
 ```
 
@@ -364,21 +364,21 @@ migration is complete.
 
 ## Caveats
 
-- **Tuist generates BOTH `HelloApp.xcodeproj` AND `HelloApp.xcworkspace`.**
+- **Tuist generates BOTH `TailnetDemo.xcodeproj` AND `TailnetDemo.xcworkspace`.**
   XcodeGen only generates the `.xcodeproj`. The existing build commands
   in `ci/local-check.sh` and `ci/local-release-check.sh` use
-  `-project app/HelloApp.xcodeproj` — they keep working. If you ever
+  `-project app/TailnetDemo.xcodeproj` — they keep working. If you ever
   open the project in Xcode, prefer the `.xcworkspace`.
 - **Tuist version pinning.** Use `mise.toml` (mise) or commit a
   `.tuist-version`-style pin to ensure CI uses the same Tuist version
   as your local. The template's CI installs `--cask tuist` which
   always pulls latest; for stability across a long-lived fork, pin.
-- **Product name suffix.** Tuist sanitizes `HelloApp-iOS` → `HelloApp_iOS`
+- **Product name suffix.** Tuist sanitizes `TailnetDemo-iOS` → `TailnetDemo_iOS`
   for `PRODUCT_NAME` and the .app bundle name. XcodeGen preserves the
-  hyphen. If your release pipeline assumed `HelloApp-iOS.app`, you'll
-  see `HelloApp_iOS.app`. The template's `fastlane/Fastfile` and
+  hyphen. If your release pipeline assumed `TailnetDemo-iOS.app`, you'll
+  see `TailnetDemo_iOS.app`. The template's `fastlane/Fastfile` and
   `ci/local-release-check.sh` already write the final `.ipa` / `.pkg`
-  with version-pattern names (`HelloApp-<version>.ipa`), which are
+  with version-pattern names (`TailnetDemo-<version>.ipa`), which are
   derived independently of the bundle name — so the rename pipeline is
   unaffected.
 - **`SWIFT_STRICT_CONCURRENCY: minimal` on the UI test target only.**
@@ -416,9 +416,9 @@ on `main` — that's the file `tuist generate` reads. Read or copy from
 there directly; this doc no longer carries an inline skeleton (it
 bit-rotted twice during validation). Notable layout choices:
 
-- 4 targets: `HelloApp-iOS`, `HelloApp-macOS`, `HelloAppUITests`,
-  `HelloAppMacOSUITests`
-- 2 schemes: `HelloApp-iOS`, `HelloApp-macOS` (UI test targets in
+- 4 targets: `TailnetDemo-iOS`, `TailnetDemo-macOS`, `TailnetDemoUITests`,
+  `TailnetDemoMacOSUITests`
+- 2 schemes: `TailnetDemo-iOS`, `TailnetDemo-macOS` (UI test targets in
   `testAction:` only — see the gotcha above)
 - macOS post-build script (`macIconScript`) for the AppIcon.icns
   override

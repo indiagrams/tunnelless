@@ -1,8 +1,8 @@
-# XcodeGen configuration for HelloApp.
+# XcodeGen configuration for TailnetDemo.
 # Generate the .xcodeproj with: xcodegen generate
 # (https://github.com/yonaskolb/XcodeGen)
 
-name: HelloApp
+name: TailnetDemo
 
 options:
   bundleIdPrefix: com.example
@@ -29,7 +29,7 @@ settings:
 
 # ─── iOS app ──────────────────────────────────────────────────────────
 targets:
-  HelloApp-iOS:
+  TailnetDemo-iOS:
     type: application
     platform: iOS
     sources:
@@ -38,7 +38,7 @@ targets:
     info:
       path: iOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: HelloApp
+        CFBundleDisplayName: Tailnet Demo
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -56,15 +56,21 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo
         TARGETED_DEVICE_FAMILY: "1,2"           # iPhone + iPad
         SUPPORTS_MACCATALYST: NO
-        CODE_SIGN_ENTITLEMENTS: iOS/HelloApp.entitlements
+        CODE_SIGN_ENTITLEMENTS: iOS/TailnetDemo.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSHumanReadableCopyright: "TODO Copyright © <year> <Your Org>. All rights reserved."
+        INFOPLIST_KEY_NSHumanReadableCopyright: "TODO Copyright © 2026 <Your Org>. All rights reserved."
+    dependencies:
+      # Built by tailscale/build-tailscalekit.sh — NOT committed to git.
+      # Run `bash tailscale/build-tailscalekit.sh` before `xcodegen generate`.
+      - framework: ../vendor/TailscaleKit.xcframework
+        embed: true
+        codeSign: true
 
 # ─── macOS app ────────────────────────────────────────────────────────
-  HelloApp-macOS:
+  TailnetDemo-macOS:
     type: application
     platform: macOS
     sources:
@@ -78,12 +84,12 @@ targets:
     info:
       path: macOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: HelloApp
+        CFBundleDisplayName: Tailnet Demo
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "TODO Copyright © <year> <Your Org>. All rights reserved."
+        NSHumanReadableCopyright: "TODO Copyright © 2026 <Your Org>. All rights reserved."
         NSPrincipalClass: NSApplication
         # CFBundleIconName intentionally NOT set — its presence makes Sonoma+
         # prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -92,12 +98,17 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp
-        CODE_SIGN_ENTITLEMENTS: macOS/HelloApp.entitlements
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo
+        CODE_SIGN_ENTITLEMENTS: macOS/TailnetDemo.entitlements
         # Suppress actool's auto-injection of CFBundleIconName=AppIcon. Empty
         # value = actool emits Assets.car as before but does not set the key,
         # so macOS reads CFBundleIconFile → our hand-rolled 10-size .icns.
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
+    dependencies:
+      # See the iOS target above. Same xcframework, macos-arm64 slice.
+      - framework: ../vendor/TailscaleKit.xcframework
+        embed: true
+        codeSign: true
     postCompileScripts:
       - name: Overwrite actool's broken AppIcon.icns with hand-rolled 10-size version
         # actool emits a 4-size .icns regardless of catalog input — missing
@@ -114,7 +125,7 @@ targets:
           echo "Overwrote $SCRIPT_OUTPUT_FILE_0 with hand-rolled 10-size .icns"
 
 # ─── UITest target (drives App Store screenshot capture) ────────────────────
-  HelloAppUITests:
+  TailnetDemoUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
@@ -128,8 +139,8 @@ targets:
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp.uitests
-        TEST_TARGET_NAME: HelloApp-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.uitests
+        TEST_TARGET_NAME: TailnetDemo-iOS
         GENERATE_INFOPLIST_FILE: YES
         # SnapshotHelper.swift is fastlane-shipped and predates Swift 6's
         # strict-by-default concurrency model. Pin this target to Swift 5
@@ -137,92 +148,92 @@ targets:
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: HelloApp-iOS
+      - target: TailnetDemo-iOS
 
 
 # ─── Unit-test target (sanity tests; forks should add real tests here) ─────
-  HelloAppTests:
+  TailnetDemoTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp.tests
-        TEST_TARGET_NAME: HelloApp-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.tests
+        TEST_TARGET_NAME: TailnetDemo-iOS
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: HelloApp-iOS
+      - target: TailnetDemo-iOS
 # ─── macOS UITest target (drives App Store screenshot capture) ─────────────
-  HelloAppMacOSUITests:
+  TailnetDemoMacOSUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
       - path: MacOSUITests
-      # See HelloAppUITests above — same rationale for the shared
+      # See TailnetDemoUITests above — same rationale for the shared
       # selector enum. The macOS UI test doesn't query it today, but
       # making the symbol available so future macOS test screens can.
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp.macuitests
-        TEST_TARGET_NAME: HelloApp-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.macuitests
+        TEST_TARGET_NAME: TailnetDemo-macOS
         GENERATE_INFOPLIST_FILE: YES
         # AppStoreScreenshotTests overrides XCTestCase.setUpWithError /
         # tearDownWithError in a @MainActor class — Swift 6 errors on
         # main-actor-isolated mutation in nonisolated overrides. Pin this
-        # target to Swift 5 mode (parallel to HelloAppUITests).
+        # target to Swift 5 mode (parallel to TailnetDemoUITests).
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: HelloApp-macOS
+      - target: TailnetDemo-macOS
 
 # ─── macOS unit-test target ─────────────────────────────────────────────
-  HelloAppMacOSTests:
+  TailnetDemoMacOSTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: MacOSTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.helloapp.mactests
-        TEST_TARGET_NAME: HelloApp-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tailnetdemo.mactests
+        TEST_TARGET_NAME: TailnetDemo-macOS
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: HelloApp-macOS
+      - target: TailnetDemo-macOS
 
 # ─── Schemes ──────────────────────────────────────────────────────────
 schemes:
-  HelloApp-iOS:
+  TailnetDemo-iOS:
     build:
       targets:
-        HelloApp-iOS: all
-        HelloAppUITests: [test]
-        HelloAppTests: [test]
+        TailnetDemo-iOS: all
+        TailnetDemoUITests: [test]
+        TailnetDemoTests: [test]
     run:
       config: Debug
-      executable: HelloApp-iOS
+      executable: TailnetDemo-iOS
     test:
       config: Debug
       targets:
-        - HelloAppUITests
-        - HelloAppTests
+        - TailnetDemoUITests
+        - TailnetDemoTests
     archive:
       config: Release
 
-  HelloApp-macOS:
+  TailnetDemo-macOS:
     build:
       targets:
-        HelloApp-macOS: all
-        HelloAppMacOSUITests: [test]
-        HelloAppMacOSTests: [test]
+        TailnetDemo-macOS: all
+        TailnetDemoMacOSUITests: [test]
+        TailnetDemoMacOSTests: [test]
     run:
       config: Debug
-      executable: HelloApp-macOS
+      executable: TailnetDemo-macOS
     test:
       config: Debug
       targets:
-        - HelloAppMacOSUITests
-        - HelloAppMacOSTests
+        - TailnetDemoMacOSUITests
+        - TailnetDemoMacOSTests
     archive:
       config: Release

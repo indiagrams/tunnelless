@@ -130,7 +130,7 @@ The full operating manual is [docs/PRINCIPLES.md](docs/PRINCIPLES.md)
 For larger changes — anything touching `ci/lib/`, the release pipeline,
 the renaming script (when it lands), or the public template "API"
 (directory layout, script names, Makefile targets) — open a [GitHub
-issue](https://github.com/indiagrams/apple-shipkit/issues) first.
+issue](https://github.com/indiagrams/embedded-tailscale-ios/issues) first.
 We'll discuss the shape before you spend time on the implementation.
 
 (Issue templates are coming in a near-term update; for now, free-form is fine.)

@@ -23,7 +23,7 @@ first and let's talk.
 3. **Squash-merge only, linear history.** No merge commits. No rebase merges.
    `git log` reads like a sequence of features, not a tangle.
 4. **The stub builds green on every PR.** `make check` is the floor. A PR
-   that breaks the `HelloApp` stub does not land — even if it's "just" docs;
+   that breaks the `TailnetDemo` stub does not land — even if it's "just" docs;
    even if it's "just" a script rename.
 5. **Shared CI helpers are SHA-pinned.** Files in `ci/lib/` are byte-identical
    across this template and downstream consumer projects that derive from it.

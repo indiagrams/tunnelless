@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct HelloAppMain: App {
+struct TailnetDemoMain: App {
     /// UI test override: when launched with `-UITestColorScheme light` or
     /// `-UITestColorScheme dark`, force the SwiftUI scene's preferred color
     /// scheme. Used by AppStoreScreenshotTests to capture light + dark

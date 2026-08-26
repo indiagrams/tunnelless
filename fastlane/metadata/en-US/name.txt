@@ -1,1 +1,1 @@
-HelloApp
+Tailnet Demo

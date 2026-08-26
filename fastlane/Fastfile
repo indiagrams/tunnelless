@@ -60,7 +60,7 @@ end
 # Resolution chain (first non-nil wins):
 #   1. ENV["APP_NAME"]  / ENV["BUNDLE_ID"]   — workflow secrets, manual override
 #   2. <repo-root>/.bootstrap.env values     — per-fork tracked config
-#   3. Template fallbacks ("HelloApp" / "com.example.helloapp") — fail-loud
+#   3. Template fallbacks ("TailnetDemo" / "com.indiagram.tailnetdemo") — fail-loud
 #      defaults; if a real ship hits these, the cert / bundle-id lookups
 #      against Apple will surface "not registered" immediately.
 #
@@ -85,8 +85,8 @@ end
 
 _FORK_CONFIG       = _fork_config
 
-APP_NAME           = ENV["APP_NAME"]  || _FORK_CONFIG["APP_NAME"]  || "HelloApp"
-APP_IDENTIFIER     = ENV["BUNDLE_ID"] || _FORK_CONFIG["BUNDLE_ID"] || "com.example.helloapp"
+APP_NAME           = ENV["APP_NAME"]  || _FORK_CONFIG["APP_NAME"]  || "TailnetDemo"
+APP_IDENTIFIER     = ENV["BUNDLE_ID"] || _FORK_CONFIG["BUNDLE_ID"] || "com.indiagram.tailnetdemo"
 IOS_SCHEME         = "#{APP_NAME}-iOS"
 MACOS_SCHEME       = "#{APP_NAME}-macOS"
 IPA_NAME_PATTERN   = "#{APP_NAME}-%s.ipa"   # printf with version
@@ -1347,7 +1347,7 @@ lane :bootstrap_asc do
 
         1. https://appstoreconnect.apple.com/apps  →  + (New App)
         2. Platforms: iOS + macOS
-           Name:      HelloApp  (or whatever; verify uses bundle_id, not name)
+           Name:      TailnetDemo  (or whatever; verify uses bundle_id, not name)
            Primary language: English (U.S.)
            Bundle ID: #{bundle_id_str}
            SKU:       any-unique-string
@@ -1393,10 +1393,10 @@ lane :adopt_existing_app do |options|
   # pointing at a REAL bundle id with a real ASC App record. A user running
   # `make adopt` without setting BUNDLE_ID would otherwise hit an opaque
   # "App not found" from Spaceship.
-  if app_identifier == "com.example.helloapp"
+  if app_identifier == "com.indiagram.tailnetdemo"
     UI.user_error!(
       "adopt_existing_app: BUNDLE_ID is the template placeholder " \
-      "'com.example.helloapp'. Set your real bundle id in .bootstrap.env " \
+      "'com.indiagram.tailnetdemo'. Set your real bundle id in .bootstrap.env " \
       "first. If this is a greenfield fork (new app, no existing App Store " \
       "presence), don't run adopt — just edit fastlane/metadata/en-US/*.txt " \
       "directly with your App Store copy."
@@ -1510,7 +1510,7 @@ lane :adopt_existing_app do |options|
         "returned false in non-interactive mode, so download_metadata exited " \
         "0 without doing any work. Our lane already passes --force; if you're " \
         "seeing this, fastlane's gate logic likely changed in a newer " \
-        "version. File an issue at indiagrams/apple-shipkit. Workaround: try " \
+        "version. File an issue at indiagrams/embedded-tailscale-ios. Workaround: try " \
         "`bundle update fastlane` and re-run `make adopt`."
       )
     end

@@ -9,7 +9,7 @@ ship with what `xcode-select --install` already provides.
 > remains [fastlane](../fastlane/Fastfile) (`fastlane release tag:vX.Y.Z`).
 > This doc shows the equivalent commands you'd run if you replaced
 > fastlane with Apple's own tools — useful as a recipe, a reference, or a
-> migration plan. Tracked in [#35](https://github.com/indiagrams/apple-shipkit/issues/35).
+> migration plan. Tracked in [#35](https://github.com/indiagrams/embedded-tailscale-ios/issues/35).
 
 ## Why this exists
 
@@ -92,10 +92,10 @@ This template uses Xcode 15+; you're already covered.
 
 The conventions below assume:
 
-- Bundle ID: `com.example.helloapp` (substitute yours)
-- Scheme: `HelloApp-iOS` / `HelloApp-macOS`
+- Bundle ID: `com.indiagram.tailnetdemo` (substitute yours)
+- Scheme: `TailnetDemo-iOS` / `TailnetDemo-macOS`
 - Team ID: read from `.bootstrap.env` as `FASTLANE_TEAM_ID` (set by `make init` + your edits)
-- Build artifacts: `build/HelloApp-<version>.ipa`, `build/HelloApp-<version>.pkg`
+- Build artifacts: `build/TailnetDemo-<version>.ipa`, `build/TailnetDemo-<version>.pkg`
 - ASC API key path: `~/.appstoreconnect/AuthKey_<KEYID>.p8` (per
   [`docs/APPLE-PREREQS.md`](APPLE-PREREQS.md))
 
@@ -123,11 +123,11 @@ TEAM_ID="$FASTLANE_TEAM_ID"
 ( cd app && xcodegen generate )
 
 WORK_DIR="$(mktemp -d)"
-IOS_ARCHIVE="$WORK_DIR/HelloApp-iOS.xcarchive"
+IOS_ARCHIVE="$WORK_DIR/TailnetDemo-iOS.xcarchive"
 
 xcodebuild archive \
-  -project app/HelloApp.xcodeproj \
-  -scheme HelloApp-iOS \
+  -project app/TailnetDemo.xcodeproj \
+  -scheme TailnetDemo-iOS \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$IOS_ARCHIVE" \
@@ -160,7 +160,7 @@ xcodebuild -exportArchive \
   -allowProvisioningUpdates
 
 IPA_SRC=$(find "$IOS_EXPORT" -maxdepth 2 -name "*.ipa" | head -1)
-IPA_DEST="build/HelloApp-${VERSION}.ipa"
+IPA_DEST="build/TailnetDemo-${VERSION}.ipa"
 cp "$IPA_SRC" "$IPA_DEST"
 shasum -a 256 "$IPA_DEST" | tee "$IPA_DEST.sha256"
 ```
@@ -183,10 +183,10 @@ ln -sf ~/.appstoreconnect/AuthKey_${ASC_API_KEY_ID}.p8 \
 
 xcrun altool --upload-package "$IPA_DEST" \
   --type ios \
-  --apple-id "com.example.helloapp" \
+  --apple-id "com.indiagram.tailnetdemo" \
   --bundle-version "$VERSION" \
   --bundle-short-version-string "$VERSION" \
-  --bundle-id "com.example.helloapp" \
+  --bundle-id "com.indiagram.tailnetdemo" \
   --apiKey "$ASC_API_KEY_ID" \
   --apiIssuer "$ASC_API_KEY_ISSUER_ID"
 ```
@@ -290,11 +290,11 @@ between export and upload.
 ### 1. Archive
 
 ```bash
-MACOS_ARCHIVE="$WORK_DIR/HelloApp-macOS.xcarchive"
+MACOS_ARCHIVE="$WORK_DIR/TailnetDemo-macOS.xcarchive"
 
 xcodebuild archive \
-  -project app/HelloApp.xcodeproj \
-  -scheme HelloApp-macOS \
+  -project app/TailnetDemo.xcodeproj \
+  -scheme TailnetDemo-macOS \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -archivePath "$MACOS_ARCHIVE" \
@@ -351,7 +351,7 @@ INSTALLER_CERT=$(security find-identity -v -p basic 2>/dev/null \
   | grep -E "3rd Party Mac Developer Installer|Mac Installer Distribution" \
   | head -1 | grep -oE '"[^"]+"' | tr -d '"')
 
-PKG_DEST="build/HelloApp-${VERSION}.pkg"
+PKG_DEST="build/TailnetDemo-${VERSION}.pkg"
 productbuild --component "$EXPANDED_APP" /Applications \
   --sign "$INSTALLER_CERT" \
   --timestamp \
@@ -366,10 +366,10 @@ Same `xcrun altool` flow as iOS, but `--type macos` and the .pkg path:
 ```bash
 xcrun altool --upload-package "$PKG_DEST" \
   --type macos \
-  --apple-id "com.example.helloapp" \
+  --apple-id "com.indiagram.tailnetdemo" \
   --bundle-version "$VERSION" \
   --bundle-short-version-string "$VERSION" \
-  --bundle-id "com.example.helloapp" \
+  --bundle-id "com.indiagram.tailnetdemo" \
   --apiKey "$ASC_API_KEY_ID" \
   --apiIssuer "$ASC_API_KEY_ISSUER_ID"
 ```

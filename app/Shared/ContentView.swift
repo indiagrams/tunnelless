@@ -1,31 +1,188 @@
+// ContentView.swift
+//
+// Demonstrates a userspace Tailscale node running inside the app.
+//
+// The flow: start tsnet with an empty auth key, read tsnet's log stream for the
+// interactive auth URL, open it, and wait for the node to reach Running. Once up,
+// the app has its own tailnet IPv4 address and can reach tailnet peers through the
+// SOCKS5 proxy tsnet exposes on loopback.
+//
+// No packet tunnel, no NetworkExtension entitlement, no VPN permission prompt.
+
 import SwiftUI
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 struct ContentView: View {
+    @State private var model = DemoModel()
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "hammer.fill")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 80, height: 80)
-                .foregroundStyle(.tint)
-                // Decorative — the title text below carries the meaning. Mark
-                // hidden so VoiceOver doesn't announce "hammer-and-wrench, image".
-                .accessibilityHidden(true)
-            Text("HelloApp")
-                .font(.largeTitle.bold())
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier(AccessibilityIdentifiers.title)
-            Text("iOS + macOS template")
-                .font(.headline)
-                .foregroundStyle(.secondary)
-            Text("Rename me. Run `bin/rename.sh --help`.")
-                .font(.footnote)
-                .foregroundStyle(.tertiary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+        VStack(alignment: .leading, spacing: 20) {
+            header
+
+            statusRow
+
+            if let ip = model.tailnetIP {
+                labelled("Tailnet IPv4", ip)
+                    .accessibilityIdentifier(AccessibilityIdentifiers.tailnetIP)
+            }
+
+            if let proxy = model.socksProxy {
+                labelled("SOCKS5 proxy", proxy)
+            }
+
+            if let url = model.authURL {
+                Link("Open login page", destination: url)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier(AccessibilityIdentifiers.loginLink)
+            }
+
+            if let err = model.errorText {
+                Text(err)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            }
+
+            Spacer()
+
+            HStack(spacing: 12) {
+                Button(model.isRunning ? "Connected" : "Connect") {
+                    Task { await model.connect() }
+                }
+                .disabled(model.isBusy || model.isRunning)
+                .accessibilityIdentifier(AccessibilityIdentifiers.connectButton)
+
+                Button("Sign out & reset", role: .destructive) {
+                    Task { await model.signOut() }
+                }
+                .disabled(model.isBusy)
+            }
+            .buttonStyle(.bordered)
         }
-        .padding()
-        .frame(minWidth: 320, minHeight: 240)
+        .padding(24)
+        .frame(maxWidth: 520, alignment: .leading)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Tailnet Demo")
+                .font(.title2.bold())
+            Text("A userspace tsnet node inside this app — no VPN profile.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var statusRow: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(model.isRunning ? .green : (model.isBusy ? .orange : .secondary))
+                .frame(width: 9, height: 9)
+            Text(model.statusText)
+                .font(.callout.monospaced())
+                .accessibilityIdentifier(AccessibilityIdentifiers.statusText)
+        }
+    }
+
+    private func labelled(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title.uppercased())
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.callout.monospaced())
+                .textSelection(.enabled)
+        }
+    }
+}
+
+// MARK: - Model
+
+@MainActor
+@Observable
+final class DemoModel {
+    private let manager = TailscaleNodeManager(hostName: "tailnet-demo")
+
+    var statusText = "idle"
+    var tailnetIP: String?
+    var socksProxy: String?
+    var authURL: URL?
+    var errorText: String?
+    var isBusy = false
+    var isRunning = false
+
+    private var logTask: Task<Void, Never>?
+
+    func connect() async {
+        isBusy = true
+        errorText = nil
+        statusText = "starting tsnet…"
+
+        do {
+            try await manager.startForBrowserLogin()
+
+            // Cached before up() ran — see TailscaleNodeManager.cachedLoopback.
+            if let lb = await manager.cachedLoopback {
+                socksProxy = "\(lb.address)"
+            }
+
+            startWatchingLogs()
+
+            statusText = "waiting for login…"
+            try await manager.awaitUp()
+
+            if case let .connected(ip) = await manager.state {
+                tailnetIP = ip
+                isRunning = true
+                statusText = "running"
+                authURL = nil
+            }
+        } catch {
+            errorText = String(describing: error)
+            statusText = "failed"
+        }
+        isBusy = false
+    }
+
+    /// Reads tsnet's log stream for the auth URL and the Running transition.
+    ///
+    /// This exists because LocalAPIClient hangs forever on physical iOS devices —
+    /// the log pipe is the only reliable signal there.
+    private func startWatchingLogs() {
+        logTask?.cancel()
+        logTask = Task { [manager] in
+            guard let pipe = await manager.currentLogPipe() else { return }
+            // Iterating FileHandle.AsyncBytes can throw (e.g. the pipe closing on reset).
+            // That's an expected end-of-stream here, not a failure to surface.
+            do {
+                for try await line in manager.logLines(pipe) {
+                    if Task.isCancelled { return }
+                    if let url = manager.authURL(from: line) {
+                        await MainActor.run { self.authURL = url }
+                    }
+                    if manager.reportsRunning(line) {
+                        await MainActor.run { self.statusText = "running" }
+                    }
+                }
+            } catch {
+                return
+            }
+        }
+    }
+
+    func signOut() async {
+        isBusy = true
+        logTask?.cancel()
+        await manager.signOutAndReset()
+        tailnetIP = nil
+        socksProxy = nil
+        authURL = nil
+        isRunning = false
+        statusText = "idle"
+        isBusy = false
     }
 }
 

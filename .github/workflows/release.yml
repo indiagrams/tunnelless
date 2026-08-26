@@ -99,7 +99,7 @@ on:
 #   gh variable set BUNDLE_ID --body <com.you.app> --repo <owner>/<fork>
 #
 # If unset, the Fastfile falls through to its template defaults
-# (HelloApp / com.example.helloapp) which Apple rejects at bundle-id
+# (TailnetDemo / com.indiagram.tailnetdemo) which Apple rejects at bundle-id
 # registration (com.example.* is reserved) — fail-loud by design.
 env:
   APP_NAME:  ${{ vars.APP_NAME }}
