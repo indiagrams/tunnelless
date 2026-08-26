@@ -65,6 +65,13 @@ let iosTarget = Target.target(
         "Shared/Localizable.xcstrings",
     ],
     entitlements: .file(path: "iOS/TailnetDemo.entitlements"),
+    dependencies: [
+        // Built by tailscale/build-tailscalekit.sh — NOT committed to git.
+        // Mirror of the `dependencies:` block in app/project.yml; Tuist
+        // embeds + signs xcframework dependencies of app targets itself,
+        // so there is no explicit `embed`/`codeSign` equivalent here.
+        .xcframework(path: "../vendor/TailscaleKit.xcframework"),
+    ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tailnetdemo",
         "TARGETED_DEVICE_FAMILY": "1,2",
@@ -128,6 +135,10 @@ let macTarget = Target.target(
     ],
     entitlements: .file(path: "macOS/TailnetDemo.entitlements"),
     scripts: [macIconScript],
+    dependencies: [
+        // See the iOS target above. Same xcframework, macos-arm64 slice.
+        .xcframework(path: "../vendor/TailscaleKit.xcframework"),
+    ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tailnetdemo",
         // Suppress actool's auto-injection of CFBundleIconName=AppIcon.

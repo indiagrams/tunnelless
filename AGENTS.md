@@ -204,4 +204,32 @@ If you DO see conflicts, you broke an invariant. The conflict points to which on
 
 > Forks should append fork-specific notes below this line. Examples: architecture choice (MVVM/Clean/etc.), preferred dependencies, internal API endpoints, your CHANGELOG style if different, your team's PR review process.
 
-<!-- Add fork-specific conventions here. -->
+### Accepted divergence: the TailscaleKit fetch step in `pr.yml`
+
+`.github/workflows/pr.yml` is template-owned, and this fork edits it anyway —
+one step, `fetch TailscaleKit.xcframework`, plus `submodules: true` on the
+`app` job's checkout.
+
+**Why it can't live anywhere else.** `pr.yml` has no fork-owned seam: the
+`app` job goes straight from "regenerate Xcode project" to "build iOS
+device", and there is no `local-check.sh` hook or equivalent extension point
+to attach to. `vendor/TailscaleKit.xcframework` is gitignored (94 MB), so
+without a fetch step every app job fails at
+`There is no XCFramework found`. Nothing in `Fastfile.local` runs during a
+PR check.
+
+**Cost.** `git merge upstream/main` will conflict on `pr.yml` whenever
+apple-shipkit touches the `app` job. The step is deliberately self-contained
+and marked `FORK-OWNED STEP` in-file so the resolution is always "keep both".
+
+**Invariants it does respect:** no hardcoded `APP_NAME`/`BUNDLE_ID`, no
+hardcoded Tailscale version (derived from `vendor/libtailscale/go.mod`), and
+the release slug is overridable via the `TSKIT_RELEASE_REPO` repo variable.
+
+### Both project manifests must declare the xcframework
+
+`app/project.yml` (XcodeGen) and `app/Project.swift` (Tuist) are 1:1
+equivalents and the CI matrix builds both. When you touch the framework
+dependency, change it in **both** — a missing `.xcframework(...)` in the
+Tuist manifest compiles as `no such module 'TailscaleKit'`, which reads like
+a missing binary rather than manifest drift.
