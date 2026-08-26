@@ -17,6 +17,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Shortcuts, Siri, and Spotlight support** via App Intents: Connect to Tailnet,
+  Get Tailnet Status, Count Online Devices, and Browse Tailnet. The status
+  intents answer without launching the app; the two that need the node open it,
+  because tsnet runs in the app's process and a first connection needs an
+  interactive browser login.
+- `TailnetSnapshot` — the last known state, persisted so an out-of-process
+  intent has something true to report. Seeded at connect and refreshed by the
+  peer list.
+- `TailnetSnapshotTests` — 7 tests over the partial-update semantics, including
+  a regression for counts being readable without opening the peer list.
+
+### Added
+
 - `NSLocalNetworkUsageDescription` and `NSAppTransportSecurity.NSAllowsLocalNetworking`
   in both manifests. iOS 14+ and macOS 15+ gate local-network access behind the
   usage string, and tsnet does LAN peer discovery. **Not** a fix for relayed

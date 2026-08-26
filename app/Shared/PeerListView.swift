@@ -181,6 +181,12 @@ final class PeerListModel {
             let status = try await TailnetStatusClient(loopback: loopback).status()
             peers = status.peerRows()
             tailnetName = status.CurrentTailnet?.Name
+            // Feeds App Intents (and, later, the widget), which cannot query tsnet.
+            TailnetSnapshotStore.update(
+                tailnetName: status.CurrentTailnet?.Name,
+                peerCount: peers.count,
+                onlinePeerCount: peers.filter(\.online).count
+            )
             // Health is nil when fine; an empty array would render an empty section.
             health = (status.Health?.isEmpty ?? true) ? nil : status.Health
             errorText = nil

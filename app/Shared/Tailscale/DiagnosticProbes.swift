@@ -178,6 +178,13 @@ extension DemoModel {
             probeResult("peers: decoded \(rows.count) in \(ms)ms tailnet=\(tailnet) health=\(status.Health?.count ?? 0)")
             let flags = rows.map(\.online)
             probeResult("peers: \(flags.filter { $0 }.count) online; online-first=\(flags == flags.sorted { $0 && !$1 })")
+            // Read back what App Intents and (later) the widget will actually see.
+            // They cannot query tsnet, so a broken snapshot means a silently wrong
+            // Shortcuts answer rather than a visible failure.
+            let snap = TailnetSnapshotStore.load()
+            probeResult("peers: snapshot connected=\(snap.isConnected) ip=\(snap.tailnetIP ?? "-") " +
+                "peers=\(snap.onlinePeerCount)/\(snap.peerCount) age=\(snap.ageDescription)")
+
             for row in rows.prefix(4) {
                 let up = row.online ? "UP  " : "down"
                 let sub = row.subtitle ?? "-"
