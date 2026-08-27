@@ -42,58 +42,30 @@ enum WebAuthLogin {
             let presenter = WindowPresenter()
         #endif
 
-        // Set before we call cancel() ourselves, so the completion handler can tell
-        // "we dismissed it because login succeeded" from "the user tapped Cancel".
-        var autoDismissed = false
-        var watcher: Task<Void, Never>?
-
         return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
-            // Two paths can finish this: the session's completion handler, and the
-            // watcher safety net below. CheckedContinuation must resume exactly once.
-            var resumed = false
-            func resumeOnce(_ value: Bool) {
-                guard !resumed else { return }
-                resumed = true
-                cont.resume(returning: value)
-            }
+            // All the mutable state lives on this @MainActor box rather than in local
+            // vars. Two reasons, and the second one is a crash:
+            //
+            // 1. Two paths can finish the continuation — the session's completion
+            //    handler and the watcher safety net below — and it must resume exactly
+            //    once.
+            //
+            // 2. The completion handler below has to be @Sendable, and a @Sendable
+            //    closure cannot capture mutable local `var`s. A @MainActor class is
+            //    implicitly Sendable, so the closure can capture this by reference and
+            //    still reach the state through an explicit hop.
+            let state = LoginState(cont)
 
-            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: nil) { _, error in
-                // WHY the main-actor hop: this completion handler is NOT delivered on
-                // the main thread on macOS. AuthenticationServices runs the callback on
-                // the XPC reply queue of its Safari launch agent
-                // (com.apple.NSXPCConnection.m-user.com.apple.SafariLaunchAgent), while
-                // on iOS it arrives on the main thread — which is why this only ever
-                // crashed on the Mac.
-                //
-                // Everything below (`watcher`, `autoDismissed`, `resumeOnce` and the
-                // continuation it closes over) is main-actor state, because `present`
-                // is a member of this @MainActor enum. Touching it from the XPC queue
-                // trips the runtime's isolation check —
-                // swift_task_isCurrentExecutorWithFlags → dispatch_assert_queue →
-                // EXC_BREAKPOINT (SIGTRAP), killing the app at the moment login
-                // succeeds. Reading the cancellation flag here is safe (it is a local
-                // Bool derived from the error); every isolated access happens inside
-                // the hop.
-                let userCancelled =
-                    (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
-                Task { @MainActor in
-                    watcher?.cancel()
-                    if autoDismissed {
-                        resumeOnce(true) // we closed it — the node is up
-                        return
-                    }
-                    resumeOnce(!userCancelled) // false = user backed out
-                }
-            }
+            let session = makeSession(url: url, state: state)
             session.prefersEphemeralWebBrowserSession = false
             session.presentationContextProvider = presenter
             session.start()
 
             guard let upTask else { return }
-            watcher = Task { @MainActor in
+            state.watcher = Task { @MainActor in
                 try? await upTask.value // resolves when the node reaches Running
                 guard !Task.isCancelled else { return }
-                autoDismissed = true
+                state.autoDismissed = true
                 session.cancel() // dismisses the sheet → back in the app
 
                 // Safety net: if the system already tore the sheet down (Safari-style back
@@ -101,8 +73,82 @@ enum WebAuthLogin {
                 // never fire. One run-loop turn is enough for it to run if it was going to;
                 // resumeOnce is idempotent either way.
                 await Task.yield()
-                resumeOnce(true)
+                state.resumeOnce(true)
             }
+        }
+    }
+
+    // MARK: - Session construction
+
+    /// Builds the session, and with it the completion handler.
+    ///
+    /// WHY this is `nonisolated` and not inlined into `present`: the completion
+    /// handler must not be main-actor isolated. `ASWebAuthenticationSession` does not
+    /// deliver it on the main thread on macOS — it arrives on the XPC reply queue of
+    /// Safari's launch agent (com.apple.NSXPCConnection.m-user.com.apple.SafariLaunchAgent).
+    /// iOS delivers it on the main thread, which is why only the Mac crashed.
+    ///
+    /// `ASWebAuthenticationSessionCompletionHandler` is a plain ObjC block with no
+    /// `NS_SWIFT_SENDABLE`, so a closure literal written inside this `@MainActor` enum
+    /// inherits the enum's isolation. Swift then emits an executor precondition in the
+    /// block thunk which trips the instant the block runs off-main:
+    /// `swift_task_isCurrentExecutorWithFlags` → `dispatch_assert_queue` →
+    /// `EXC_BREAKPOINT` (SIGTRAP), killing the app exactly when login finishes.
+    ///
+    /// That check fires on ENTRY, before any statement in the body, so hopping to the
+    /// main actor *inside* the closure does not help — and `@Sendable` alone does not
+    /// help either, because in Swift 6 a closure can be both `@Sendable` and isolated.
+    /// Forming the closure in a `nonisolated` context is what actually removes the
+    /// isolation. `LoginState` is `@MainActor` (hence `Sendable`), so the captured
+    /// state is still reached through an explicit hop.
+    ///
+    /// Guard against regression: moving this closure back inside `present` compiles
+    /// cleanly and crashes only at runtime, on macOS, at the moment sign-in completes.
+    private nonisolated static func makeSession(
+        url: URL, state: LoginState
+    ) -> ASWebAuthenticationSession {
+        ASWebAuthenticationSession(url: url, callbackURLScheme: nil) { _, error in
+            let userCancelled =
+                (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+            Task { @MainActor in state.finish(userCancelled: userCancelled) }
+        }
+    }
+
+    // MARK: - Login state
+
+    /// The mutable half of `present`, held on the main actor.
+    ///
+    /// Exists so the session's completion handler can be `@Sendable`: that closure
+    /// cannot capture mutable local `var`s, but a `@MainActor` class is implicitly
+    /// `Sendable`, so it can capture one of these and reach the state through a hop.
+    @MainActor
+    private final class LoginState {
+        /// Set before we cancel the session ourselves, so the completion handler can
+        /// tell "we dismissed it because login succeeded" from "the user tapped Cancel".
+        var autoDismissed = false
+        var watcher: Task<Void, Never>?
+
+        private var cont: CheckedContinuation<Bool, Never>?
+
+        init(_ cont: CheckedContinuation<Bool, Never>) {
+            self.cont = cont
+        }
+
+        /// Idempotent: two paths race to finish, and a CheckedContinuation must
+        /// resume exactly once. Clearing `cont` is what makes the second call a no-op.
+        func resumeOnce(_ value: Bool) {
+            guard let c = cont else { return }
+            cont = nil
+            c.resume(returning: value)
+        }
+
+        func finish(userCancelled: Bool) {
+            watcher?.cancel()
+            if autoDismissed {
+                resumeOnce(true) // we closed it — the node is up
+                return
+            }
+            resumeOnce(!userCancelled) // false = user backed out
         }
     }
 
