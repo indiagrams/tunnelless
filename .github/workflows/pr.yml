@@ -132,6 +132,20 @@ jobs:
       - name: format-check
         run: swiftformat --lint app/
 
+  # Structural guard for the macOS sign-in crash (TAILSCALE.md #6). Runs on
+  # ubuntu because it is a grep, not a build — and it has to be its own job
+  # precisely because the compiler cannot catch what it checks: a completion
+  # handler that inherits @MainActor isolation builds cleanly and traps only at
+  # runtime, only on macOS, only after a real login.
+  auth-isolation:
+    name: auth handler isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: check ASWebAuthenticationSession handler is nonisolated
+        run: ./ci/check-auth-isolation.sh
+
   # Single matrix job covering both generators × all platforms. Replaces 6
   # near-identical jobs (~80% duplicated YAML) with one parameterized one.
   # Check-name stability (branch-protection-required) is preserved by
