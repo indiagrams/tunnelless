@@ -53,7 +53,12 @@ final class AppStoreScreenshotTests: XCTestCase {
             throw XCTSkip("Skipped on headless GitHub Actions runner; runs in full locally via `make screenshots`.")
         }
 
-        app.launchArguments = ["UI_TESTING"]
+        // Same arguments the iOS screenshot test uses. `UI_TESTING` was read by
+        // nothing in the app, so the captured window showed the signed-out empty
+        // state while the iOS listing showed a populated tailnet. `-UITestDemoData`
+        // supplies the fixture peers and `-autoconnect` brings the node up without
+        // a tap, so the macOS shot matches the rest of the listing.
+        app.launchArguments = ["-UITestDemoData", "-autoconnect"]
         app.launch()
         // activate() so the window comes to front; without it the window may
         // launch behind others and XCUITest's window queries return nothing
