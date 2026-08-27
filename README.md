@@ -268,12 +268,12 @@ Work found here that has gone upstream:
   appear at upload. **Open** ([tailscale#20992](https://github.com/tailscale/tailscale/issues/20992)).
   If it lands, most of `tailscale/build-tailscalekit.sh` becomes unnecessary
   and you can take the xcframework straight from upstream.
-- [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) — adds
-  `nonisolated resolvedLoopback()` so `LocalAPIClient` stops awaiting an actor
-  that `up()` holds for the entire login. **Open**
+- [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) — runs the
+  blocking `tailscale_up` off the actor, so `LocalAPIClient` stops awaiting an
+  actor that `up()` holds for the entire login. **Open**
   ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
   Until it lands this repo carries it as
-  `tailscale/patches/0002-localapi-nonisolated-loopback.patch`.
+  `tailscale/patches/0002-up-off-actor.patch`.
 
 ### Why this repo still exists
 

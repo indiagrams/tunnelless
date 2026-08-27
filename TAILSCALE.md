@@ -94,7 +94,13 @@ Measured on a physical iPhone 12, node left in `NeedsLogin` so `up()` blocked
 |---|---|---|
 | direct HTTP `GET /localapi/v0/status`, loopback captured before `up()` | no | **200 OK in 32 ms**, `BackendState=NeedsLogin` |
 | `LocalAPIClient.backendStatus()` — stock | yes | **hung**; resolved only once `up()` returned |
-| `LocalAPIClient.backendStatus()` — patched | no | **200 OK in 2 ms** |
+| `LocalAPIClient.backendStatus()` — patched | no | **200 OK in 5 ms**, `BackendState=NeedsLogin` |
+
+The **stock** row is the measurement taken when this bug was first diagnosed on
+device; it was *not* re-measured in the session that produced the 5 ms patched
+figure, so treat it as cited rather than freshly paired. The mechanism does have
+a same-session before/after, on macOS: stock hung with no return within
+**10007 ms** where the patched build returned in **22 ms**, baseline first.
 
 The direct arm is the control: the LocalAPI listener answers throughout, so only
 the actor hop in front of it is blocked. After `up()` returns, stock
@@ -102,14 +108,41 @@ the actor hop in front of it is blocked. After `up()` returns, stock
 
 Reproduce with the launch arguments `-duringup` (both arms above), `-probe
 <host:port>` (SOCKS5 to a peer), `-localapi` (direct HTTP) and `-localapiclient`
-(the real client, after Running). Reaching the LocalAPI directly needs both
+(the real client, after Running).
+
+`-duringup` needs **`-autoconnect` alongside it**: `connect()` only runs
+unattended with that argument, and without it `up()` never runs and there is
+nothing to sample. Pass both through XCUITest `launchArguments` rather than
+`devicectl`, which parses `-autoconnect` as one of its own options; the device
+also needs *Settings → Developer → Enable UI Automation*. `probeResult` writes
+via `NSLog`, so capture with `idevicesyslog`, not `devicectl --console` (stdout
+only).
+
+**The node must be in `NeedsLogin` when the probes run.** On a device whose
+state directory still holds credentials, `tailscale_up` returns in ~12 ms and
+both arms report `BackendState=Running` — a healthy sample that says nothing
+about the defect. Uninstall the app first to clear the container. The run below
+was taken after an uninstall: `up()` was called at `00:55:25.160`, the probes
+answered at `00:55:25.225` and `00:55:25.230`, and `up()` did not return until
+`00:56:53.231` — 88 seconds later, with both arms reporting `NeedsLogin`. Reaching the LocalAPI directly needs both
 credentials from `tailscale.h`: the `Sec-Tailscale: localapi` header **and**
 basic auth with `local_api_cred`.
 
 **Fix:** [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58)
-adds `nonisolated resolvedLoopback()` so the memoized value is readable without
-actor entry. Carried locally as
-`tailscale/patches/0002-localapi-nonisolated-loopback.patch` until it lands.
+runs the blocking `tailscale_up` off the actor —
+`await Task.detached { tailscale_up(tailscale) }.value` — so `up()` suspends and
+releases the actor instead of holding it for the whole login. Carried locally as
+`tailscale/patches/0002-up-off-actor.patch` until it lands.
+
+An earlier revision of #58 instead added a `nonisolated resolvedLoopback()` so
+the memoized value could be read without actor entry. The maintainer proposed
+freeing the actor instead, and measurement showed that is the better fix: tsnet
+never serialised these calls — `Up()` blocks on an IPN bus watcher rather than a
+lock, and `Loopback()` returned in **433 µs** while `Up()` was held in
+`NeedsLogin` — so releasing the actor is sufficient on its own, and the caller
+caveat the old approach needed ("resolve the loopback config before calling
+`up()`") disappears. It also unblocks `close()`, which is the documented way to
+cancel an in-progress `tailscale_up` and was itself unreachable during login.
 
 The login workaround stays regardless — it needs no credentials and is the only
 signal available before the node is up.
@@ -159,15 +192,25 @@ Everything this project has filed upstream, newest first.
 
 | Upstream | What | Status |
 | --- | --- | --- |
-| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | `nonisolated resolvedLoopback()` so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Open** |
+| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | Runs `tailscale_up` off the actor so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Open**, changes requested and addressed |
+| [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) | Universal (arm64 + x86_64) macOS slice — without it a universal macOS release cannot link | **Open**, no review yet |
+| [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) | `TailscaleNode.down()` calls `tailscale_up()`; on a node never brought up it starts it. No `tailscale_down` exists | **Open** |
 | [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
 | [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) | Makes the built xcframework distributable: privacy manifests (ITMS-91053), a macOS slice, a validator for upload-only failures | **Open** |
-| [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Open, approved** |
+| [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Merged** 2026-08-26, but *not* in the pinned `v1.102.3` |
 | [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 |
 
 If #57 lands, most of `build-tailscalekit.sh` becomes redundant. If #58 lands,
-`tailscale/patches/0002-localapi-nonisolated-loopback.patch` can be dropped and
-status/peer data becomes readable during login without a workaround.
+`tailscale/patches/0002-up-off-actor.patch` can be dropped and status/peer data
+becomes readable during login without a workaround. #59 is what keeps
+`PLATFORMS=ios`: the macOS slice is arm64-only, so a macOS release cannot link
+x86_64.
+
+That x86_64 requirement comes from Xcode's default, not from Apple. The macOS
+target resolves `ARCHS = arm64 x86_64` via `ARCHS_STANDARD`; nothing in this
+repo asks for it. Setting `ARCHS = arm64` would link against the existing slice
+and ship Apple-Silicon-only, at the cost of Intel Macs — so #59 is what a
+*universal* macOS build needs, not what macOS support needs at all.
 
 Background, both **closed as completed**:
 
@@ -182,9 +225,14 @@ Closed-as-completed does not mean finished in practice — the `network.server`
 sandbox requirement and the bring-up deadlock in item 1 were both found after
 those issues were closed.
 
-While #20985 and #58 are unmerged, `build-tailscalekit.sh` applies them from
-`tailscale/patches/` and **hard-fails if a patch doesn't apply** — an
-xcframework missing a fix should never build silently.
+`build-tailscalekit.sh` applies the carried fixes from `tailscale/patches/` and
+**hard-fails if a patch doesn't apply** — an xcframework missing a fix should
+never build silently.
+
+#20985 has merged upstream, but the merge commit is **not** contained in the
+pinned `v1.102.3` (comparing the two reports `diverged, ahead 153`), so its
+module-cache patch stays until a version bump carries it. A release tag's date
+does not tell you whether it contains a commit — check containment, not dates.
 
 ## macOS: the App Sandbox needs `network.server`
 
