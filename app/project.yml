@@ -8,7 +8,11 @@ options:
   bundleIdPrefix: com.example
   deploymentTarget:
     iOS: "17.0"
-    macOS: "14.0"
+    # 15.6, not 14.0: TailscaleKit's macOS slice is built with minos 15.6, so a
+    # lower floor links and then fails to load at runtime on anything older —
+    # dyld refuses the framework and the app dies at launch. Raise this only in
+    # step with the slice; lowering it needs upstream to lower MACOS_TARGET.
+    macOS: "15.6"
   developmentLanguage: en
   generateEmptyDirectories: true
   groupSortPosition: top
@@ -122,6 +126,12 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
         CODE_SIGN_ENTITLEMENTS: macOS/Tunnelless.entitlements
+        # Apple Silicon only. ARCHS_STANDARD would be "arm64 x86_64", but
+        # TailscaleKit's macOS slice is arm64-only (upstream's swift/Makefile
+        # pins -destination 'platform=macOS,arch=arm64'), so a universal build
+        # cannot link. libtailscale#59 would produce a universal slice; until
+        # it lands this is what makes a macOS build possible at all.
+        ARCHS: arm64
         # Suppress actool's auto-injection of CFBundleIconName=AppIcon. Empty
         # value = actool emits Assets.car as before but does not set the key,
         # so macOS reads CFBundleIconFile → our hand-rolled 10-size .icns.
