@@ -63,6 +63,6 @@ above updated. The file's history is public in the repository.
 
 ## Contact
 
-Questions about this policy: <jpraju@gmail.com>
+Questions about this policy: <contact@indiagram.com>
 
 Issues and bug reports: <https://github.com/indiagrams/tunnelless/issues>
