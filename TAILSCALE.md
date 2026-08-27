@@ -62,7 +62,7 @@ scaffolding. Per its `AGENTS.md`, `bin/`, `ci/`, `.github/workflows/`, `Makefile
 and `fastlane/Fastfile` are template-owned — **Tailscale tooling deliberately
 lives in `tailscale/`, not `ci/`, so the fork can still merge upstream.**
 
-## The five things that will bite you
+## The six things that will bite you
 
 **1. `LocalAPIClient` is unusable *during bring-up*, because `up()` holds the
 actor every request awaits.** `startLoginInteractive()`, `backendStatus()` and
@@ -174,6 +174,44 @@ line waits forever.
 tagged four days *after* [#19052](https://github.com/tailscale/tailscale/pull/19052)
 merged and does not contain it — the release branch was cut earlier. Check the
 source at the tag, never the date.
+
+**6. A completion handler written inside a `@MainActor` type inherits that
+isolation — and on macOS `ASWebAuthenticationSession` does not call it on the
+main thread.** The Tailscale login sheet's completion block is delivered on the
+XPC reply queue of Safari's launch agent
+(`com.apple.NSXPCConnection.m-user.com.apple.SafariLaunchAgent`). iOS delivers
+it on the main thread, so this only kills the Mac app — at the exact moment
+sign-in succeeds:
+
+```
+EXC_BREAKPOINT (SIGTRAP)
+  dispatch_assert_queue_fail
+  swift_task_isCurrentExecutorWithFlags
+  <app>            ← the completion block
+  ASWebAuthenticationSession _endSessionWithCallbackURL:error:
+```
+
+`ASWebAuthenticationSessionCompletionHandler` is a plain ObjC block with no
+`NS_SWIFT_SENDABLE`, so under Swift 6 a closure literal written inside a
+`@MainActor` type inherits the isolation and the compiler plants an executor
+precondition in the block thunk. Fix: build the session in a `nonisolated`
+function (`WebAuthLogin.makeSession`) and hop explicitly for state.
+
+*Two things make this worse than an ordinary threading bug.* The check fires on
+closure **entry**, before any statement in the body — so the obvious fix, hopping
+to the main actor *inside* the handler, is unreachable code and changes nothing.
+That fix was shipped as build 3 and crashed identically. And `@Sendable` alone
+does not help either: in Swift 6 a closure can be both `@Sendable` and
+actor-isolated.
+
+The compiler will not warn you. Touching main-actor state from a closure that
+inherited main-actor isolation is *legal*, so the broken version builds clean and
+fails only at runtime, only on macOS. Once the handler is genuinely `nonisolated`
+the same line reports `main actor-isolated property ... can not be mutated from a
+nonisolated context` — which is how the fix was confirmed rather than guessed.
+Note that is a **warning, not an error**, because AuthenticationServices is a
+pre-concurrency import: nothing stops this regressing. `ci/check-auth-isolation.sh`
+guards it.
 
 ## What Apple rejects
 

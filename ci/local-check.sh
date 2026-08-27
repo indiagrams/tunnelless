@@ -106,6 +106,11 @@ build_macos() {
 step "preflight: shared release helpers in sync"
 verify_helpers_in_sync
 
+# Structural guard, not a build check: the macOS sign-in crash it prevents
+# compiles cleanly and fails only at runtime. See TAILSCALE.md #6.
+step "preflight: auth completion handler isolation"
+./ci/check-auth-isolation.sh
+
 case "$mode" in
   --fast)
     ensure_xcodeproj
