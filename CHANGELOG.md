@@ -15,6 +15,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The carried LocalAPI fix now runs `tailscale_up` off the actor** instead of
+  adding a `nonisolated` accessor. `tailscale/patches/0002-up-off-actor.patch`
+  replaces `tailscale/patches/0002-localapi-nonisolated-loopback.patch`, keeping
+  the local build in step with what
+  [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) now
+  proposes after review.
+
+  The maintainer proposed freeing the actor rather than working around it, and
+  measurement showed that is the better fix. tsnet never serialised these calls
+  — `Up()` blocks on an IPN bus watcher rather than a lock — so `Loopback()`
+  returns in **433 µs** while `Up()` is held in `NeedsLogin`. Releasing the actor
+  is therefore sufficient on its own, and the caveat the old approach required
+  ("resolve the loopback config before calling `up()`") is gone. It also unblocks
+  `close()`, the documented way to cancel an in-progress `tailscale_up`, which
+  was itself unreachable during login.
+
+  At the Swift level, same machine and session, baseline first: stock hung with
+  no return within **10007 ms**; patched returned in **22 ms**.
+
+  Confirmed on device (iPhone 12, iOS 26.5) after an uninstall so the node was
+  genuinely in `NeedsLogin`: `up()` was in flight for **88 s**, and
+  `LocalAPIClient.backendStatus()` answered in **5 ms** inside that window with
+  `BackendState=NeedsLogin`. An earlier attempt on a device that still held
+  credentials returned `Running` in 12 ms and was discarded — it sampled the
+  state where the defect cannot appear.
+
+- `TAILSCALE.md` and `README.md` updated to describe the new approach, and the
+  upstream table corrected: [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985)
+  has **merged** but is *not* contained in the pinned `v1.102.3`, so its
+  module-cache patch stays until a version bump.
+
+### Added
+
+- [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) and
+  [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) added to
+  the upstream table. #21005 reports that `TailscaleNode.down()` calls
+  `tailscale_up()`: on a node never brought up it starts it, and no
+  `tailscale_down` exists in the C API.
+
 ## [0.1.0] - 2026-08-26
 
 First App Store release. Tunnelless joins a Tailscale network from inside the
