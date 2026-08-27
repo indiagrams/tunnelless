@@ -322,6 +322,63 @@ xcodebuild -exportArchive \
 EXPORTED_PKG=$(find "$MACOS_EXPORT" -maxdepth 2 -name "*.pkg" | head -1)
 ```
 
+> **If export fails with "No profiles for ... were found".** The block above
+> uses automatic signing, which asks Apple to *cloud sign*. That path needs an
+> Xcode account; with API-key-only auth it fails:
+>
+> ```
+> error: exportArchive Communication with Apple failed
+> error: exportArchive No profiles for 'com.indiagram.tunnelless' were found
+> ```
+>
+> The profile can be ACTIVE at Apple and still not be found — the failure is
+> authentication, not absence. Switch to manual signing:
+>
+> 1. Download the ACTIVE `MAC_APP_STORE` profile for the bundle id from the
+>    App Store Connect API (`GET /v1/profiles`, base64 in `profileContent`) and
+>    write it to `~/Library/MobileDevice/Provisioning Profiles/<uuid>.provisionprofile`.
+> 2. Read the cert the profile binds to from its `DeveloperCertificates[0]` —
+>    the SHA-1 of that DER is the identity to pin. Pinning matters: xcodebuild
+>    substring-matches `Apple Distribution`, so a keychain holding more than one
+>    picks arbitrarily and export fails with *"Provisioning profile doesn't
+>    include signing certificate"*.
+> 3. Re-run with both set:
+>
+> ```bash
+> RELEASE_MACOS_PROFILE_NAME="com.indiagram.tunnelless AppStore 1787773506" \
+> RELEASE_MACOS_CERT_SHA1=<sha1 from step 2> \
+> ci/local-release-check.sh v0.1.0 --sign-macos
+> ```
+>
+> `ci/local-release-check.sh` switches to `CODE_SIGN_STYLE=Manual` when
+> `RELEASE_MACOS_PROFILE_NAME` is set, which skips cloud signing entirely.
+
+> **The installer cert must belong to the same team as the app.** `productbuild`
+> signs the `.pkg` with a *Mac Installer Distribution* cert — a different cert
+> from the one that signs the `.app`. If your keychain holds more than one (a
+> personal team plus an org team is the common case), selecting by name alone
+> picks whichever comes first and the `.pkg` is signed by the wrong team, which
+> App Store Connect rejects on upload. `ci/local-release-check.sh` now prefers
+> the identity matching `$TEAM_ID` and warns when it has to fall back;
+> `RELEASE_MACOS_INSTALLER_SHA1` overrides the search. Check what was actually
+> used — `productbuild` prints it:
+>
+> ```
+> productbuild: Signing product with identity "3rd Party Mac Developer Installer: Indiagram LLC (G5H628C6WR)"
+> ```
+
+> **Validate before uploading.** `xcrun altool --validate-app -f <pkg> -t macos
+> --apiKey <id> --apiIssuer <issuer>` runs Apple's upload checks without
+> creating a build record. `altool` reads its key only from standard
+> directories, so the `.p8` must sit at
+> `~/.appstoreconnect/private_keys/AuthKey_<id>.p8`.
+>
+> This is also how the arm64-only question was settled: a Mac App Store package
+> containing only an `arm64` slice returns `VERIFY SUCCEEDED with no errors`.
+> Apple does not require an Intel slice. `ARCHS = arm64` on the macOS target is
+> what makes a build possible at all while TailscaleKit's macOS slice is
+> arm64-only.
+
 ### 3. App-sandbox re-sign hack (mandatory before upload)
 
 > **Why this exists.** Xcode's auto-managed Mac App Store provisioning

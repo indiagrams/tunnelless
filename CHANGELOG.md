@@ -15,6 +15,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **macOS builds are possible again.** `ARCHS = arm64` on the `Tunnelless-macOS`
+  target. `ARCHS_STANDARD` resolves to `arm64 x86_64`, and TailscaleKit's macOS
+  slice is arm64-only, so a universal build could not link — which is what kept
+  `PLATFORMS=ios`. Verified against Apple: a Mac App Store package containing
+  only an `arm64` slice returns `VERIFY SUCCEEDED with no errors` from
+  `altool --validate-app`. **Apple does not require an Intel slice**, so
+  [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) is what a
+  *universal* macOS build needs, not what macOS support needs.
+
+### Fixed
+
+- **macOS deployment target raised to 15.6.** It declared `14.0` while
+  TailscaleKit's macOS slice is built `minos 15.6`. That links cleanly and then
+  fails at launch on anything older — dyld refuses the framework. It appeared
+  only as a single `ld: warning` in an otherwise green build. macOS 14 and
+  15.0–15.5 can no longer install; that is imposed by the framework, and
+  lowering it needs upstream to lower `MACOS_TARGET`.
+
+- **`ci/local-release-check.sh` signed the `.pkg` with the wrong team's
+  installer certificate.** Selection was `security find-identity | grep … |
+  head -1`, with no team filter, so a keychain holding both a personal-team and
+  an org-team *Mac Installer Distribution* cert got whichever sorted first —
+  and App Store Connect rejects a package signed by a different team than the
+  app. This is the same ambiguity the code-signing path already pins away with
+  `RELEASE_MACOS_CERT_SHA1`, left unhandled for the installer cert. Now prefers
+  the identity matching `$TEAM_ID`, warns and falls back when none matches, and
+  accepts `RELEASE_MACOS_INSTALLER_SHA1` as an override. Adds the `warn()`
+  helper the script never had.
+
 ### Changed
 
 - **The carried LocalAPI fix now runs `tailscale_up` off the actor** instead of
