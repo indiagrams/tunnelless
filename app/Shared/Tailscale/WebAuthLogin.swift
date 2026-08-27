@@ -58,15 +58,31 @@ enum WebAuthLogin {
             }
 
             let session = ASWebAuthenticationSession(url: url, callbackURLScheme: nil) { _, error in
-                watcher?.cancel()
-                if autoDismissed {
-                    resumeOnce(true) // we closed it — the node is up
-                    return
-                }
-                if let e = error as? ASWebAuthenticationSessionError, e.code == .canceledLogin {
-                    resumeOnce(false) // user backed out
-                } else {
-                    resumeOnce(true)
+                // WHY the main-actor hop: this completion handler is NOT delivered on
+                // the main thread on macOS. AuthenticationServices runs the callback on
+                // the XPC reply queue of its Safari launch agent
+                // (com.apple.NSXPCConnection.m-user.com.apple.SafariLaunchAgent), while
+                // on iOS it arrives on the main thread — which is why this only ever
+                // crashed on the Mac.
+                //
+                // Everything below (`watcher`, `autoDismissed`, `resumeOnce` and the
+                // continuation it closes over) is main-actor state, because `present`
+                // is a member of this @MainActor enum. Touching it from the XPC queue
+                // trips the runtime's isolation check —
+                // swift_task_isCurrentExecutorWithFlags → dispatch_assert_queue →
+                // EXC_BREAKPOINT (SIGTRAP), killing the app at the moment login
+                // succeeds. Reading the cancellation flag here is safe (it is a local
+                // Bool derived from the error); every isolated access happens inside
+                // the hop.
+                let userCancelled =
+                    (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                Task { @MainActor in
+                    watcher?.cancel()
+                    if autoDismissed {
+                        resumeOnce(true) // we closed it — the node is up
+                        return
+                    }
+                    resumeOnce(!userCancelled) // false = user backed out
                 }
             }
             session.prefersEphemeralWebBrowserSession = false
