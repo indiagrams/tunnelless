@@ -8,7 +8,7 @@ particular fork built on top of it.
 
 ## Reporting a Vulnerability
 
-Email: **jpraju@gmail.com**
+Email: **contact@indiagram.com**
 
 Do NOT open a public GitHub issue for security bugs. Public issues are for
 non-security bugs and feature requests; for vulnerabilities, the email
