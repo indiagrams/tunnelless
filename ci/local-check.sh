@@ -111,6 +111,11 @@ verify_helpers_in_sync
 step "preflight: auth completion handler isolation"
 ./ci/check-auth-isolation.sh
 
+# Catches the class of App Review rejection that costs a full review cycle and
+# is answered with prose, not code. See TAILSCALE.md "What Apple rejects".
+step "preflight: App Review trigger explanations"
+./ci/check-review-notes.sh
+
 case "$mode" in
   --fast)
     ensure_xcodeproj

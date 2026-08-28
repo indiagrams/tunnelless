@@ -224,6 +224,24 @@ guards it.
 Every one of these fails at **upload**, not at build. That's the whole reason
 the validator exists.
 
+A second class fails *after* upload, during Apple's automated pre-review scan.
+These are not build problems and no code change fixes them — the app is flagged
+for what it legitimately is, and the fix is an explanation that must already be
+in App Review Information when you submit:
+
+| Automated flag | Trigger | Answer |
+| --- | --- | --- |
+| "network.server entitlement but does not appear to have matching functionality" | `com.apple.security.network.server` in the macOS entitlements | tsnet binds a **loopback** listener (the SOCKS5 proxy the app itself uses). Sandbox requires the entitlement for any listening socket. Removing it makes the app non-functional — `tailscale_start()` returns `res=-1`. |
+| "the app contains VPN functionality" | embedded WireGuard via tsnet — fires even with **no** NetworkExtension anywhere | No NEPacketTunnelProvider, no VPN profile, no networkextension entitlement, no system VPN. Answer all three of Apple's questions (what data, what purpose, shared with whom); for this app the answer to each is "none". |
+
+Both cost a full review cycle on 0.1.0, on both platforms, purely because the
+explanation was not pre-loaded. `ci/check-review-notes.sh` now fails the build if
+a known trigger is present without a matching explanation in `notes.txt`.
+
+**The generalisable rule:** the triggers are statically detectable from the app's
+own manifest, so they are knowable *before* the first submission. Write the
+explanation up front; learning it from a rejection costs days per lesson.
+
 ## Upstream
 
 Everything this project has filed upstream, newest first.
