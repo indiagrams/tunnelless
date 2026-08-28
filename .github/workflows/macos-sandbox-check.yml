@@ -105,7 +105,7 @@ jobs:
       - name: assert the sandbox entitlements are actually embedded
         run: |
           set -euo pipefail
-          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}-macOS.app"
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}.app"
           ENTS="$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert xml1 -o - -)"
           echo "$ENTS"
           fail=0
@@ -124,7 +124,7 @@ jobs:
       - name: launch and assert tailscale_start succeeds
         run: |
           set -uo pipefail
-          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}-macOS.app"
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}.app"
           LOG="$RUNNER_TEMP/launch.log"
 
           # -autoconnect makes the app start the node without UI interaction.
@@ -134,7 +134,7 @@ jobs:
           # Deliberately not using `timeout`: that is GNU coreutils and is not
           # guaranteed on a macOS runner. Polling also returns as soon as the
           # result line lands instead of always burning the full budget.
-          "$APP/Contents/MacOS/${APP_NAME}-macOS" -autoconnect > "$LOG" 2>&1 &
+          "$APP/Contents/MacOS/${APP_NAME}" -autoconnect > "$LOG" 2>&1 &
           APP_PID=$!
           for _ in $(seq 1 90); do
             if grep -q 'tailscale_start .* returned res=' "$LOG" 2>/dev/null; then

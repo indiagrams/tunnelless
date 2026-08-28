@@ -79,7 +79,7 @@ targets:
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_ENTITLEMENTS: iOS/Tunnelless.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSHumanReadableCopyright: "TODO Copyright © 2026 <Your Org>. All rights reserved."
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Indiagram LLC. All rights reserved."
     dependencies:
       # Built by tailscale/build-tailscalekit.sh — NOT committed to git.
       # Run `bash tailscale/build-tailscalekit.sh` before `xcodegen generate`.
@@ -107,7 +107,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "TODO Copyright © 2026 <Your Org>. All rights reserved."
+        NSHumanReadableCopyright: "Copyright © 2026 Indiagram LLC. All rights reserved."
         NSPrincipalClass: NSApplication
         # CFBundleIconName intentionally NOT set — its presence makes Sonoma+
         # prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -125,6 +125,15 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
+        # WHY set explicitly: PRODUCT_NAME defaults to the TARGET name, so the
+        # shipped bundle was Tunnelless-macOS.app with CFBundleName
+        # "Tunnelless-macOS". App Review rejected that under Guideline 5.2.5
+        # (Legal - Intellectual Property): "Terms for macOS in the app name that
+        # displays on the device". The target keeps its name so schemes and CI
+        # are unaffected; only the product users see changes.
+        # The bundle identifier is deliberately untouched — changing it would
+        # orphan existing installs.
+        PRODUCT_NAME: Tunnelless
         CODE_SIGN_ENTITLEMENTS: macOS/Tunnelless.entitlements
         # Apple Silicon only. ARCHS_STANDARD would be "arm64 x86_64", but
         # TailscaleKit's macOS slice is arm64-only (upstream's swift/Makefile

@@ -91,7 +91,7 @@ let iosTarget = Target.target(
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
-        "INFOPLIST_KEY_NSHumanReadableCopyright": "TODO Copyright © 2026 <Your Org>. All rights reserved.",
+        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
     ])
 )
 
@@ -103,7 +103,7 @@ let macInfoPlist: [String: Plist.Value] = [
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
     "LSApplicationCategoryType": "public.app-category.utilities",
-    "NSHumanReadableCopyright": "TODO Copyright © 2026 <Your Org>. All rights reserved.",
+    "NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
     "NSPrincipalClass": "NSApplication",
     // CFBundleIconName intentionally NOT set — its presence makes Sonoma+
     // prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -154,6 +154,10 @@ let macTarget = Target.target(
         "Shared/Localizable.xcstrings",
     ],
     entitlements: .file(path: "macOS/Tunnelless.entitlements"),
+    // Mirrors project.yml: PRODUCT_NAME defaults to the target name, which
+    // shipped Tunnelless-macOS.app and drew a Guideline 5.2.5 rejection for
+    // using "macOS" in the displayed app name.
+    settings: .settings(base: ["PRODUCT_NAME": "Tunnelless"]),
     scripts: [macIconScript],
     dependencies: [
         // See the iOS target above. Same xcframework, macos-arm64 slice.
