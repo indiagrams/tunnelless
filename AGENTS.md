@@ -220,6 +220,27 @@ Consequences worth knowing:
 
 ## Fork conventions
 
+### Accepted divergence: fork-owned preflight checks
+
+Two guards are fork-owned and wired into template-owned files, because a check
+nobody runs is not a check:
+
+- `ci/check-auth-isolation.sh` — asserts the `ASWebAuthenticationSession`
+  completion handler stays in a `nonisolated` context (`TAILSCALE.md` #6). Wired
+  into `ci/local-check.sh` as a preflight step and into `pr.yml` as its own job.
+- `ci/check-review-notes.sh` — fails when an App Review trigger (sandbox server
+  entitlement, embedded WireGuard, declared encryption, permission prompts) has
+  no matching explanation in `fastlane/metadata/review_information/notes.txt`.
+  Wired into `ci/local-check.sh`.
+
+Both scripts are new files, which the template tolerates. The *wiring* edits
+`ci/local-check.sh` and `.github/workflows/pr.yml`, so both will conflict on an
+upstream sync — re-apply the step and the job.
+
+`ci/extract-mac-screenshots.sh` is also edited (window-anchored crop plus alpha
+flattening); see the file header for why the template's centred crop produced
+non-deterministic screenshots and an alpha channel Apple rejects.
+
 ### Accepted divergence: the TailscaleKit fetch step in `pr.yml`
 
 `.github/workflows/pr.yml` is template-owned, and this fork edits it anyway —
