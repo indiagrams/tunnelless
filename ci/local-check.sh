@@ -116,6 +116,11 @@ step "preflight: auth completion handler isolation"
 step "preflight: App Review trigger explanations"
 ./ci/check-review-notes.sh
 
+# Verifies the claim notes.txt makes about the demo tailnet. Warns (does not
+# fail) when TS_DEMO_API_KEY is unset. See the script header.
+step "preflight: App Review demo account"
+./ci/check-demo-account.sh
+
 case "$mode" in
   --fast)
     ensure_xcodeproj

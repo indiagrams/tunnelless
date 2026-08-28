@@ -232,6 +232,15 @@ nobody runs is not a check:
   entitlement, embedded WireGuard, declared encryption, permission prompts) has
   no matching explanation in `fastlane/metadata/review_information/notes.txt`.
   Wired into `ci/local-check.sh`.
+- `ci/check-demo-account.sh` — verifies the demo tailnet actually has an online
+  device, which `notes.txt` promises App Review it will. Needs `TS_DEMO_API_KEY`
+  (an access token for the **demo** account, not your own); warns rather than
+  fails when unset. Wired into `ci/local-check.sh`.
+
+  This covers the rejection class the static checks cannot: `check-review-notes.sh`
+  confirms an explanation *exists*, not that it is *true*. PrivateClaw's 10
+  submissions were driven far more by "the reviewer could not see it work" than by
+  anything in a manifest.
 
 Both scripts are new files, which the template tolerates. The *wiring* edits
 `ci/local-check.sh` and `.github/workflows/pr.yml`, so both will conflict on an

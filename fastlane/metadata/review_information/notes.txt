@@ -1,16 +1,16 @@
 IMPORTANT -- NO SEPARATE TAILSCALE APP REQUIRED
 
-Tunnelless has Tailscale built in. Do NOT install the Tailscale app. The Tailscale
-sign-in screen on first launch is account authentication only -- it connects this
-app's own embedded node to that account's network.
+Tunnelless has Tailscale built in. Do NOT install the Tailscale app. The sign-in
+screen on first launch is account authentication only -- it connects this app's
+own embedded node to that account's network.
 
 ABOUT THIS APP
 
-Tunnelless joins a Tailscale network from inside the app itself, without
-installing a VPN profile. Only this app's own connections use the network; the
-rest of the device is unaffected and any VPN the user already runs keeps working.
-It is analogous to an SSH or FTP client: it connects to a network the user already
-has. Demo credentials are in the App Review Information section above.
+Tunnelless joins a Tailscale network from inside the app itself, without a VPN
+profile. Only this app's connections use the network; the rest of the device is
+unaffected and any VPN the user already runs keeps working. It is analogous to an
+SSH client: it connects to a network the user already has. Demo credentials are in
+the App Review Information section above.
 
 HOW TO REVIEW
 
@@ -21,33 +21,31 @@ HOW TO REVIEW
    website and never redirects back, so the app watches its own node instead --
    expected, no action needed.
 4. The main screen shows the device's private address (100.x.y.z) and the local
-   SOCKS5 proxy address the app uses to reach other machines.
+   SOCKS5 proxy address used to reach other machines.
 5. "Browse tailnet" lists the demo account's devices. Offline devices are expected
    -- they are simply not powered on. At least one should be online.
 6. "Sign out & reset" removes the node and deletes its stored credentials.
 
 VPN -- the app has no VPN features, and collects no user information
 
-The app does not use NetworkExtension. There is no NEPacketTunnelProvider, no VPN
-configuration, no VPN profile, and it does not request the
-com.apple.developer.networking.networkextension entitlement. It never installs a
-system VPN, never triggers an "Allow VPN configuration" prompt, and never routes
-or intercepts traffic belonging to any other app.
+The app does not use NetworkExtension: no NEPacketTunnelProvider, no VPN profile,
+and it does not request the com.apple.developer.networking.networkextension
+entitlement. It never installs a system VPN, never triggers an "Allow VPN
+configuration" prompt, and never routes or intercepts any other app's traffic.
 
 Instead it links Tailscale's tsnet as a library and runs a userspace network node
-inside its own process, exposing a local SOCKS5 proxy that only this app uses. The
-scope of the connection is this app's own traffic and nothing else.
+in its own process, exposing a local SOCKS5 proxy only this app uses. The scope of
+the connection is this app's own traffic and nothing else.
 
-- What user information is collected: none. No analytics, no tracking, no
-  telemetry, no crash reporting. This matches the app's privacy manifest and its
-  "Data Not Collected" App Privacy declaration.
+- What user information is collected: none. No analytics, tracking, telemetry or
+  crash reporting. This matches the privacy manifest and the "Data Not Collected"
+  App Privacy declaration.
 - For what purposes: not applicable, as nothing is collected.
 - Shared with third parties: no. We operate no servers and receive no user data.
-  The user signs in to their own existing Tailscale account; that authentication
-  happens directly with Tailscale in an ASWebAuthenticationSession against
-  Tailscale's own site, and the app never sees those credentials. Network state is
-  stored only on the device and is deleted when the user signs out. Tailscale is
-  the user's own pre-existing network provider, not a party we send data to.
+  The user signs in to their own Tailscale account directly with Tailscale, in an
+  ASWebAuthenticationSession against Tailscale's site; the app never sees those
+  credentials. Network state is stored only on the device and deleted on sign out.
+  Tailscale is the user's own network provider, not a party we send data to.
 
 SANDBOX (macOS only) -- com.apple.security.network.server is REQUIRED
 
@@ -60,10 +58,16 @@ only entitlements:
   + network.client -> res=-1
   + network.server -> res=0
 
-Without it the node never starts and the app cannot connect to anything. The app
-accepts no inbound connections from outside the device; the listener is on
-loopback. The userspace WireGuard transport must also receive UDP from the user's
-own peers and from DERP relays, which is inherent to WireGuard.
+Without it the node never starts and the app cannot connect. The app accepts no
+inbound connections from outside the device; the listener is on loopback. The
+userspace WireGuard transport must also receive UDP from the user's own peers and
+from DERP relays, which is inherent to WireGuard.
+
+ENCRYPTION
+
+All traffic uses WireGuard (ChaCha20-Poly1305 + Curve25519), open-source exempt
+encryption under EAR 740.17(b)(3)(iii). ITSAppUsesNonExemptEncryption is set to
+false in Info.plist -- the app uses only exempt encryption. No ERN required.
 
 Tunnelless has no user accounts, servers, or sign-up of its own. Tailscale is a
 registered trademark of Tailscale Inc.; Tunnelless is not affiliated with or
@@ -71,4 +75,4 @@ endorsed by Tailscale Inc.
 
 Local network permission is requested on first connect, to reach devices on the
 same physical network directly rather than relaying. Declining it does not break
-the app -- connections simply take the relayed path.
+the app -- connections take the relayed path.
