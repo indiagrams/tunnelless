@@ -17,9 +17,26 @@
 import Foundation
 
 enum DemoData {
-    /// True only under `fastlane snapshot` / an explicit Xcode run argument.
-    static var isEnabled: Bool {
+    /// Turned on from the app itself, via the "Demo mode" button on the main screen.
+    ///
+    /// WHY this exists: App Review could not evaluate the app. Signing in requires a
+    /// Tailscale account, and the demo account we supply now prompts for an emailed
+    /// verification code that a reviewer cannot receive — Guideline 2.1(a),
+    /// "we need an authentication code to access the app's content". Apple's own
+    /// suggested remedy is "including a demonstration mode that exhibits the app's
+    /// full features and functionality", which is this.
+    ///
+    /// Deliberately not persisted: demo mode should never survive a relaunch and be
+    /// mistaken for a real tailnet. Sign out clears it too.
+    @MainActor static var runtimeEnabled = false
+
+    /// True under `fastlane snapshot` / an explicit Xcode run argument.
+    static var launchArgumentEnabled: Bool {
         ProcessInfo.processInfo.arguments.contains("-UITestDemoData")
+    }
+
+    @MainActor static var isEnabled: Bool {
+        launchArgumentEnabled || runtimeEnabled
     }
 
     static let tailnetIP = "100.84.19.7"

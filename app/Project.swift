@@ -88,6 +88,8 @@ let iosTarget = Target.target(
     ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        // Mirrors project.yml: keeps "iOS" out of the shipped CFBundleName.
+        "PRODUCT_NAME": "Tunnelless",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",

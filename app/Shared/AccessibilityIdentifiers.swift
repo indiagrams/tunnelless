@@ -40,6 +40,7 @@ public enum AccessibilityIdentifiers {
     public static let tailnetIP = "Tunnelless.tailnetIP"
     /// Starts the node and the browser-login flow.
     public static let connectButton = "Tunnelless.connectButton"
+    static let demoModeButton = "demoModeButton"
     /// Opens the interactive auth URL scraped from tsnet's log stream.
     public static let loginLink = "Tunnelless.loginLink"
 

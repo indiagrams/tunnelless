@@ -75,6 +75,11 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
+        # Same reason as the macOS target: PRODUCT_NAME defaults to the TARGET
+        # name, which would ship CFBundleName "Tunnelless-iOS". App Review cited
+        # Guideline 5.2.5 for "macOS" in the displayed name; "iOS" is an Apple
+        # term on the same footing, so it is fixed before being flagged.
+        PRODUCT_NAME: Tunnelless
         TARGETED_DEVICE_FAMILY: "1,2"           # iPhone + iPad
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_ENTITLEMENTS: iOS/Tunnelless.entitlements
