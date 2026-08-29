@@ -253,7 +253,7 @@ Everything this project has filed upstream, newest first.
 | [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) | `TailscaleNode.down()` calls `tailscale_up()`; on a node never brought up it starts it. No `tailscale_down` exists | **Open** |
 | [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
 | [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) | Makes the built xcframework distributable: privacy manifests (ITMS-91053), a macOS slice, a validator for upload-only failures | **Open** |
-| [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Merged** 2026-08-26, but *not* in the pinned `v1.102.3` |
+| [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Merged** 2026-08-26, but in *no release yet* — absent from `v1.102.3` and from `v1.103.0-pre` |
 | [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 |
 
 If #57 lands, most of `build-tailscalekit.sh` becomes redundant. If #58 lands,
@@ -285,10 +285,23 @@ those issues were closed.
 **hard-fails if a patch doesn't apply** — an xcframework missing a fix should
 never build silently.
 
-#20985 has merged upstream, but the merge commit is **not** contained in the
-pinned `v1.102.3` (comparing the two reports `diverged, ahead 153`), so its
-module-cache patch stays until a version bump carries it. A release tag's date
-does not tell you whether it contains a commit — check containment, not dates.
+#20985 has merged upstream but has **not shipped in any release**, so its
+module-cache patch stays. Verified at the source rather than by date or by
+commit graph — `tsnet/tsnet.go` at both `v1.102.3` and `v1.103.0-pre` still
+reads the unpatched `s.sys.Bus.Get().Close()` (line 668), with no `Bus.GetOK()`
+anywhere in either file.
+
+Checking the source matters here, not just the ancestry: `compare/<tag>...<sha>`
+answers a question about which commit descends from which, and a backport would
+make that answer wrong. Absence of `Bus.GetOK()` is only proof because upstream
+merged the *same shape* the build script patches in — confirmed against the
+#20985 diff, not assumed. That also means the retirement is a deletion, never a
+rebase: once a release carries it, `build-tailscalekit.sh` takes its own
+"already applied" branch and the patch block is simply dead.
+
+`tailscale-upstream-watch.yml` now performs this check every Monday and reports
+containment outright, instead of reporting the merge state and asking a human to
+go and grep.
 
 ## macOS: the App Sandbox needs `network.server`
 

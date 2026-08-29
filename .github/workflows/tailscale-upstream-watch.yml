@@ -5,15 +5,23 @@ name: tailscale-upstream-watch
 # What it watches, and why each matters:
 #
 #   1. tailscale.com releases vs the version pinned in
-#      vendor/libtailscale/go.mod. This project deliberately pins to a
+#      tailscale/TAILSCALE_VERSION -- which is what this actually reads, and
+#      what build-tailscalekit.sh builds from. (`vendor/libtailscale/go.mod` is
+#      not consulted; note that `awk '/^require tailscale.com /'` on it returns
+#      empty after any `go mod tidy`.) This project deliberately pins to a
 #      known-good version (see README), so the goal is to KNOW you are stale,
 #      not to bump automatically.
 #
-#   2. Whether the upstream patches build-tailscalekit.sh carries have merged.
-#      While tailscale#20985 is unmerged the build script patches the Go module
-#      cache and hard-fails if the patch stops applying. Once it merges AND
-#      ships in the pinned version, that patch step becomes dead code that
-#      keeps "succeeding" forever. Nothing else would ever tell you.
+#   2. Whether the upstream patches build-tailscalekit.sh carries have merged
+#      AND shipped. While tailscale#20985 is unmerged the build script patches
+#      the Go module cache and hard-fails if the patch stops applying. Once it
+#      merges AND ships in the pinned version, that patch step becomes dead code
+#      that keeps "succeeding" forever. Nothing else would ever tell you.
+#
+#      Merged is not shipped. #20985 merged 2026-08-26 and is still absent from
+#      v1.102.3 and from v1.103.0-pre. So this reads the TAGGED SOURCE rather
+#      than reporting the merge state and asking a human to go and grep -- which
+#      is what it used to do, every Monday, with nothing to do at the end of it.
 #
 # It opens or edits a single issue rather than filing a new one each week, so
 # it cannot become a notification treadmill. If nothing is stale and no patch
@@ -79,6 +87,36 @@ jobs:
           echo "p20985=$P20985" >> "$GITHUB_OUTPUT"
           echo "tailscale#20985: $P20985"
 
+          # Does a given tag's tsnet.go already carry the fix?
+          #
+          # Answered from the TAGGED SOURCE. Not from the release date, which says
+          # nothing about containment, and not from `compare/<tag>...<sha>`, which
+          # answers a question about ancestry that a backport would get wrong.
+          #
+          # The sentinel is the call upstream actually merged in #20985
+          # (`if bus, ok := s.sys.Bus.GetOK(); ok && bus != nil`) -- confirmed
+          # against the PR diff, not assumed from our own patch. It is also the
+          # form build-tailscalekit.sh patches in, so when this says yes, the
+          # build script's own "already applied" branch is what will fire.
+          #
+          # A failed fetch returns UNKNOWN, never "no". Reporting a fetch failure
+          # as "not contained" would be the same silent-success failure this
+          # workflow exists to prevent, pointed the other way.
+          contains_fix () {
+            local src
+            src="$(curl -sfL --max-time 30 \
+                     "https://raw.githubusercontent.com/tailscale/tailscale/$1/tsnet/tsnet.go" 2>/dev/null)" \
+              || { echo UNKNOWN; return; }
+            [ -z "$src" ] && { echo UNKNOWN; return; }
+            if printf '%s' "$src" | grep -q 'Bus.GetOK()'; then echo yes; else echo no; fi
+          }
+
+          FIX_PINNED="$(contains_fix "$PINNED")"
+          FIX_LATEST="$(contains_fix "$LATEST")"
+          echo "fix_pinned=$FIX_PINNED" >> "$GITHUB_OUTPUT"
+          echo "fix_latest=$FIX_LATEST" >> "$GITHUB_OUTPUT"
+          echo "#20985 in $PINNED: $FIX_PINNED   in $LATEST: $FIX_LATEST"
+
           # Does the build script still think it needs to patch?
           if grep -q '20985' tailscale/build-tailscalekit.sh; then
             echo "patch_present=true" >> "$GITHUB_OUTPUT"
@@ -94,6 +132,8 @@ jobs:
           STALE: ${{ steps.state.outputs.stale }}
           P20985: ${{ steps.state.outputs.p20985 }}
           PATCH_PRESENT: ${{ steps.state.outputs.patch_present }}
+          FIX_PINNED: ${{ steps.state.outputs.fix_pinned }}
+          FIX_LATEST: ${{ steps.state.outputs.fix_latest }}
           TITLE: "Upstream watch: Tailscale version + carried patches"
         run: |
           set -euo pipefail
@@ -102,7 +142,7 @@ jobs:
           BODY="_Maintained automatically by \`.github/workflows/tailscale-upstream-watch.yml\`. Edited in place each Monday; closed when there is nothing to do._"
           BODY="$BODY"$'\n\n'"## Pinned Tailscale version"$'\n\n'
           BODY="$BODY"'| | version |'$'\n''| --- | --- |'$'\n'
-          BODY="$BODY""| pinned (\`vendor/libtailscale/go.mod\`) | \`$PINNED\` |"$'\n'
+          BODY="$BODY""| pinned (\`tailscale/TAILSCALE_VERSION\`) | \`$PINNED\` |"$'\n'
           BODY="$BODY""| latest stable upstream | \`$LATEST\` |"$'\n\n'
 
           if [ "$STALE" = "true" ]; then
@@ -123,8 +163,22 @@ jobs:
           BODY="$BODY""- patch still present in the build script: **$PATCH_PRESENT**"$'\n\n'
 
           if [ "$P20985" = "MERGED" ] && [ "$PATCH_PRESENT" = "true" ]; then
-            NEEDS_ATTENTION=true
-            BODY="$BODY"":warning: #20985 has merged upstream. Once the pinned version contains it, delete the patch step from \`build-tailscalekit.sh\` and drop the note from \`TAILSCALE.md\`. Verify by grepping the tagged source — a release tag's date does not tell you whether it contains a commit."$'\n\n'
+            BODY="$BODY""Read from the tagged \`tsnet/tsnet.go\`, not from release dates:"$'\n\n'
+            BODY="$BODY""- pinned \`$PINNED\` contains the fix: **$FIX_PINNED**"$'\n'
+            BODY="$BODY""- latest stable \`$LATEST\` contains the fix: **$FIX_LATEST**"$'\n\n'
+
+            if [ "$FIX_PINNED" = "UNKNOWN" ] || [ "$FIX_LATEST" = "UNKNOWN" ]; then
+              NEEDS_ATTENTION=true
+              BODY="$BODY"":warning: Could not read the tagged source, so containment is unverified. This is reported rather than assumed — treating a fetch failure as \"not contained\" is how a patch step quietly outlives its purpose."$'\n\n'
+            elif [ "$FIX_PINNED" = "yes" ]; then
+              NEEDS_ATTENTION=true
+              BODY="$BODY"":warning: **Actionable now.** The pinned version already contains the fix, so the patch step is dead code. Delete it from \`build-tailscalekit.sh\` and drop the note from \`TAILSCALE.md\`. Delete it — do not rebase it; upstream merged the same shape the script patches in."$'\n\n'
+            elif [ "$FIX_LATEST" = "yes" ]; then
+              NEEDS_ATTENTION=true
+              BODY="$BODY"":warning: **A bump would retire this patch.** \`$LATEST\` contains the fix and the pinned \`$PINNED\` does not. Bump first, then delete the patch step."$'\n\n'
+            else
+              BODY="$BODY"":information_source: Merged upstream but not in any release yet, so there is nothing to do. The patch stays until a release carries it."$'\n\n'
+            fi
           fi
 
           EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
