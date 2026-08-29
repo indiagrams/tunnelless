@@ -146,6 +146,20 @@ jobs:
       - name: check ASWebAuthenticationSession handler is nonisolated
         run: ./ci/check-auth-isolation.sh
 
+  # macOS because it needs `sips`: icons inside a built .ipa are CgBI PNGs,
+  # which Pillow and most decoders refuse. Its own job for the same reason as
+  # auth-isolation — nothing in a build objects to a placeholder icon. Build 1
+  # shipped apple-shipkit's flat blue template icon, was green in every cell,
+  # passed ASC upload validation, and came back as a Guideline 2.3.8 rejection.
+  app-icon:
+    name: app icon is not a placeholder
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: check app icon content, size and alpha
+        run: ./ci/check-app-icon.sh
+
   # Single matrix job covering both generators × all platforms. Replaces 6
   # near-identical jobs (~80% duplicated YAML) with one parameterized one.
   # Check-name stability (branch-protection-required) is preserved by
