@@ -222,7 +222,7 @@ Consequences worth knowing:
 
 ### Accepted divergence: fork-owned preflight checks
 
-Two guards are fork-owned and wired into template-owned files, because a check
+Three guards are fork-owned and wired into template-owned files, because a check
 nobody runs is not a check:
 
 - `ci/check-auth-isolation.sh` — asserts the `ASWebAuthenticationSession`
@@ -236,6 +236,25 @@ nobody runs is not a check:
   device, which `notes.txt` promises App Review it will. Needs `TS_DEMO_API_KEY`
   (an access token for the **demo** account, not your own); warns rather than
   fails when unset. Wired into `ci/local-check.sh`.
+
+`ci/check-app-icon.sh` is a different case, and the distinction is worth keeping
+straight: the **script is template-owned and byte-identical to apple-shipkit** —
+do not edit it here, or it rejoins the conflict surface. Only its *wiring*
+diverges.
+
+apple-shipkit gates it on the release path alone
+(`ci/local-release-check.sh`), because the template's own icon is a placeholder
+by design and a fork must stay free to build and test with it. This fork's icon
+is real, so a placeholder here would be a regression rather than a starting
+state — which is worth catching on the pull request that introduces it, not at
+`make ship`. It is therefore wired into `ci/local-check.sh` as a preflight and
+into `pr.yml` as its own macOS job (macOS because it needs `sips`: icons inside
+a built `.ipa` are CgBI PNGs that Pillow cannot read).
+
+An upstream sync will bring apple-shipkit's release-path wiring too. That is
+harmless redundancy — but do not also copy its explanatory comment, which says
+the gate lives on the release path *rather than* in `local-check.sh`. True
+upstream, false here.
 
   This covers the rejection class the static checks cannot: `check-review-notes.sh`
   confirms an explanation *exists*, not that it is *true*. PrivateClaw's 10

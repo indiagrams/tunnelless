@@ -1,20 +1,24 @@
 #!/bin/bash
-# ci/check-app-icon.sh — refuse to ship a placeholder app icon.
+# ci/check-app-icon.sh — refuse to release a placeholder app icon.
 #
 # WHY THIS EXISTS
 #
-# Tunnelless 0.1.0 build 1 was rejected under Guideline 2.3.8 (Accurate
-# Metadata) for shipping a placeholder icon. The placeholder was not written by
-# hand — it is the flat blue square apple-shipkit ships as its template icon,
-# and it went out unchanged. Nothing objected: the asset was a valid 1024x1024
-# PNG, the build was green across every CI cell, and the App Store Connect
-# upload validated. The first thing to notice was a human reviewer, one full
-# review cycle later.
+# This template ships a placeholder icon — a flat blue square — and a fork that
+# never replaces it will hand that square to App Store review. At least one has:
+# it came back as a Guideline 2.3.8 (Accurate Metadata) rejection, one full
+# review cycle spent.
 #
-# The one check that existed looked at the wrong thing. apple-shipkit's doctor
-# has an "Icon1024" step, but it only compares the icon's hash against
-# ICON_1024_PATH — so pointing that at a placeholder reports "done". Presence
-# was verified; content never was.
+# Nothing objected on the way out. The asset was a valid 1024x1024 PNG, every CI
+# cell was green, and App Store Connect's upload validation accepted it. The
+# first thing to notice was a human reviewer.
+#
+# The check that existed was looking at the wrong thing: doctor's Icon1024 step
+# compares the icon's hash against ICON_1024_PATH, so pointing that at a
+# placeholder reports "done". Presence was verified; content never was.
+#
+# This runs on the RELEASE path only, not on every build. The template's own
+# icon is a placeholder by design, so a fork must stay free to build and test
+# with it — what must not happen is shipping it.
 #
 # WHAT COUNTS AS A PLACEHOLDER
 #
@@ -24,18 +28,16 @@
 # each cover at least 3% of the image. Artwork puts distant clusters on the
 # canvas; a flat fill or a bare gradient does not.
 #
-#   flat blue square (build 1's icon)   spread   0.0   -> placeholder
-#   apple-shipkit's template icon       spread   0.0   -> placeholder
-#   Tunnelless's real icon              spread 175.0   -> art
-#   the same icon inside the shipped ipa spread 171.3  -> art
+#   this template's placeholder icon    spread   0   -> placeholder
+#   a real app icon (gradient + mark)   spread 282   -> art
 #
 # The threshold is 40, which sits with wide margin on both sides of a gap that
-# is 0 vs 171 in practice.
+# is 0 vs 282 in practice.
 #
 # NO PILLOW. Icons inside a built .ipa are CgBI PNGs (Apple's crushed variant)
-# and Pillow refuses them with "broken data stream", which would have made this
-# check silently skip exactly the artifact that matters most. sips reads them,
-# so the pixels come via `sips -s format bmp` and a stdlib BMP parse.
+# and Pillow refuses them with "broken data stream", which would make this check
+# silently skip exactly the artifact that matters most. sips reads them, so the
+# pixels come via `sips -s format bmp` and a stdlib BMP parse.
 #
 # Escape hatch, for a design that really is one flat colour:
 #   ALLOW_PLACEHOLDER_ICON=true
@@ -152,7 +154,7 @@ MAC_ICON="app/macOS/Assets.xcassets/AppIcon.appiconset/icon_512x512@2x.png"
 
 echo
 if [ "$fail" -ne 0 ]; then
-  echo "FAILED: shipping this icon invites a Guideline 2.3.8 rejection." >&2
+  echo "FAILED: releasing this icon invites a Guideline 2.3.8 rejection." >&2
   exit 1
 fi
 echo "passed"
