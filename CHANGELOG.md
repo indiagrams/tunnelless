@@ -17,6 +17,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`tailscale-upstream-watch.yml` now decides patch retirement instead of
+  delegating it.** It reads `tsnet/tsnet.go` at the pinned and latest tags and
+  reports whether each contains `tailscale#20985`, replacing a weekly issue that
+  said "verify by grepping the tagged source" and left the grepping to a human.
+  Four outcomes: actionable now, a bump would retire it, merged-but-unreleased
+  (nothing to do), and a fetch failure — which reports `UNKNOWN` rather than
+  "not contained", because treating a failed fetch as absence is how a patch
+  step quietly outlives its purpose. Since today's real state is
+  merged-but-unreleased, the tracking issue now closes itself rather than
+  reopening every Monday.
+
 - **App Review notes now answer Guideline 5.1.1(v) (account deletion).** Apple
   raised it against macOS build 4 and no build can answer it: the app creates no
   account, so there is nothing to add to the binary. The notes now state that
