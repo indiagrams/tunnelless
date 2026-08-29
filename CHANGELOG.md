@@ -15,6 +15,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`ci/check-app-icon.sh` — the build now refuses a placeholder icon.** Build 1
+  shipped apple-shipkit's flat blue template icon unchanged and came back as a
+  Guideline 2.3.8 rejection. Nothing objected on the way out: the asset was a
+  valid 1024x1024 PNG, all six CI cells were green, and App Store Connect's
+  upload validation accepted it. The only thing that noticed was a human
+  reviewer, a full cycle later.
+
+  Placeholders are detected structurally, with no knowledge of the app's brand:
+  quantise to 8 colours, take the largest distance between clusters covering
+  >=3% of the image. Artwork puts distant clusters on the canvas; a flat fill or
+  a bare gradient does not. Measured — flat blue `0`, shipkit's template `0`,
+  the real icon `282`; the threshold is `40`. Also checks 1024x1024 and rejects
+  an alpha channel, which Apple refuses outright.
+
+  Deliberately no Pillow: icons inside a built `.ipa` are CgBI PNGs, which
+  Pillow refuses with "broken data stream" — so a Pillow implementation would
+  silently skip the artifact that matters most. Pixels come via `sips` and a
+  stdlib BMP parse. `ALLOW_PLACEHOLDER_ICON=true` overrides.
+
 ### Changed
 
 - **README's Upstream section brought current**, and it now separates *merged*

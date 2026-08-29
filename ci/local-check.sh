@@ -116,6 +116,11 @@ step "preflight: auth completion handler isolation"
 step "preflight: App Review trigger explanations"
 ./ci/check-review-notes.sh
 
+# The other 2.3.8 class: a valid, correctly-sized icon with nothing drawn on it.
+# A build cannot object to this, and ASC upload validation accepts it.
+step "preflight: app icon is not a placeholder"
+./ci/check-app-icon.sh
+
 # Verifies the claim notes.txt makes about the demo tailnet. Warns (does not
 # fail) when TS_DEMO_API_KEY is unset. See the script header.
 step "preflight: App Review demo account"
