@@ -17,6 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **App Review notes now answer Guideline 5.1.1(v) (account deletion).** Apple
+  raised it against macOS build 4 and no build can answer it: the app creates no
+  account, so there is nothing to add to the binary. The notes now state that
+  there is no sign-up, and separate the two things signing in does create — the
+  on-device state directory, which `Sign out & reset` deletes in one action, and
+  the device entry on the user's own tailnet, which the app *cannot* remove
+  because tsnet exposes no logout or device-removal call. Written this way
+  because the previous draft claimed sign-out removed the tailnet entry, which is
+  false — the 12 stale `tunnelless-*` nodes that needed
+  `DELETE /api/v2/device/{id}` are the proof.
+
+- **`ci/check-review-notes.sh` fails when an app with interactive sign-in says
+  nothing about account deletion.** Guideline 5.1.1(v) has already cost one
+  review cycle, and a Resolution Center reply cannot carry the answer forward —
+  that thread closes the moment you resubmit, so the notes are the only durable
+  channel.
+
 - **macOS builds are possible again.** `ARCHS = arm64` on the `Tunnelless-macOS`
   target. `ARCHS_STANDARD` resolves to `arm64 x86_64`, and TailscaleKit's macOS
   slice is arm64-only, so a universal build could not link — which is what kept
@@ -27,6 +44,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   *universal* macOS build needs, not what macOS support needs.
 
 ### Fixed
+
+- **The notes-vs-plist encryption guard never ran.** `check-review-notes.sh`
+  greps line-by-line for `ITSAppUsesNonExemptEncryption is set to <value>`, but
+  the notes are hard-wrapped prose and the claim spans a line break, so the
+  pattern matched nothing and the check silently passed. It is the guard that
+  exists specifically to stop a false claim reaching App Review — the exact bug
+  it was written for (PrivateClaw's notes claiming `true` against a `false`
+  plist) would have gone straight through here. Now newline-tolerant, and
+  verified to fail when the claim is flipped.
 
 - **macOS deployment target raised to 15.6.** It declared `14.0` while
   TailscaleKit's macOS slice is built `minos 15.6`. That links cleanly and then

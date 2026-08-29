@@ -87,7 +87,11 @@ fi
 # 4. Any claim in the notes about a plist value must match the plist. PrivateClaw
 #    currently tells Apple "ITSAppUsesNonExemptEncryption is set to true" while
 #    both of its plists say false — a false statement in a live submission.
-claimed=$(grep -oiE "ITSAppUsesNonExemptEncryption is set to (true|false)" "$NOTES" | grep -oiE "(true|false)$" | tr '[:upper:]' '[:lower:]' | head -1)
+# Newline-tolerant: notes are hard-wrapped prose, so the claim routinely spans a
+# line break ("... is set to\nfalse in Info.plist"). grep is line-based, so the
+# line-by-line form silently matched nothing here and this guard never ran --
+# the exact failure it exists to catch would have sailed through.
+claimed=$(tr '\n' ' ' < "$NOTES" | tr -s ' ' | grep -oiE "ITSAppUsesNonExemptEncryption is set to (true|false)" | grep -oiE "(true|false)$" | tr '[:upper:]' '[:lower:]' | head -1)
 if [ -n "$claimed" ]; then
   actual=$(grep -h -A1 "ITSAppUsesNonExemptEncryption" app/*/Generated-Info.plist 2>/dev/null \
            | grep -oE "<(true|false)/>" | head -1 | tr -d '<>/')
@@ -119,6 +123,24 @@ for key in NSCameraUsageDescription NSMicrophoneUsageDescription \
     fi
   fi
 done
+
+# 7. Account deletion (Guideline 5.1.1(v)). Tunnelless took this rejection on
+#    macOS build 4. Unlike the scans above, NO BUILD ANSWERS IT: the app creates
+#    no account, so there is nothing to add to the binary and nothing a reviewer
+#    can be shown. The notes are the only durable place the answer can live -- a
+#    Resolution Center reply is not, because that thread closes the moment you
+#    resubmit. If the app has an interactive sign-in, say what signing in
+#    creates and how each part is removed, before Apple asks again.
+if found "ASWebAuthenticationSession" app/; then
+  if covers "account deletion"; then
+    echo "  ok   interactive sign-in -> account deletion addressed in notes"
+  else
+    echo "  FAIL the app signs in via ASWebAuthenticationSession, but notes.txt" >&2
+    echo "       never addresses account deletion. Guideline 5.1.1(v) has already" >&2
+    echo "       cost this app one review cycle, and no build change can answer it." >&2
+    fail=1
+  fi
+fi
 
 # 6. ASC hard limit. Exceeding it means the notes silently fail to upload.
 n=$(wc -c < "$NOTES" | tr -d ' ')
