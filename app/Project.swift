@@ -90,6 +90,8 @@ let iosTarget = Target.target(
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
         // Mirrors project.yml: keeps "iOS" out of the shipped CFBundleName.
         "PRODUCT_NAME": "Tunnelless",
+        // Module name is internal; pinned so tests need not change.
+        "PRODUCT_MODULE_NAME": "Tunnelless_iOS",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
@@ -156,10 +158,6 @@ let macTarget = Target.target(
         "Shared/Localizable.xcstrings",
     ],
     entitlements: .file(path: "macOS/Tunnelless.entitlements"),
-    // Mirrors project.yml: PRODUCT_NAME defaults to the target name, which
-    // shipped Tunnelless-macOS.app and drew a Guideline 5.2.5 rejection for
-    // using "macOS" in the displayed app name.
-    settings: .settings(base: ["PRODUCT_NAME": "Tunnelless"]),
     scripts: [macIconScript],
     dependencies: [
         // See the iOS target above. Same xcframework, macos-arm64 slice.
@@ -167,6 +165,10 @@ let macTarget = Target.target(
     ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        // Mirrors project.yml: PRODUCT_NAME defaults to the target name, which
+        // shipped Tunnelless-macOS.app and drew a Guideline 5.2.5 rejection.
+        "PRODUCT_NAME": "Tunnelless",
+        "PRODUCT_MODULE_NAME": "Tunnelless_macOS",
         // Suppress actool's auto-injection of CFBundleIconName=AppIcon.
         // Empty value = actool emits Assets.car as before but does not set
         // the key, so macOS reads CFBundleIconFile → our hand-rolled .icns.

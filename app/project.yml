@@ -80,6 +80,10 @@ targets:
         # Guideline 5.2.5 for "macOS" in the displayed name; "iOS" is an Apple
         # term on the same footing, so it is fixed before being flagged.
         PRODUCT_NAME: Tunnelless
+        # PRODUCT_NAME also drives the Swift module name. That is internal and
+        # invisible to Apple, so it is pinned to the old value rather than
+        # renaming the symbol every test file imports.
+        PRODUCT_MODULE_NAME: Tunnelless_iOS
         TARGETED_DEVICE_FAMILY: "1,2"           # iPhone + iPad
         SUPPORTS_MACCATALYST: NO
         CODE_SIGN_ENTITLEMENTS: iOS/Tunnelless.entitlements
@@ -139,6 +143,8 @@ targets:
         # The bundle identifier is deliberately untouched — changing it would
         # orphan existing installs.
         PRODUCT_NAME: Tunnelless
+        # See the iOS target: keep the internal module name stable.
+        PRODUCT_MODULE_NAME: Tunnelless_macOS
         CODE_SIGN_ENTITLEMENTS: macOS/Tunnelless.entitlements
         # Apple Silicon only. ARCHS_STANDARD would be "arm64 x86_64", but
         # TailscaleKit's macOS slice is arm64-only (upstream's swift/Makefile
@@ -207,6 +213,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.tests
         TEST_TARGET_NAME: Tunnelless-iOS
+        # WHY explicit: xcodegen derives TEST_HOST from the TARGET name,
+        # but PRODUCT_NAME is overridden to "Tunnelless" (Guideline 5.2.5),
+        # so the derived path pointed at a bundle that no longer exists and
+        # CI failed with "Could not find test host".
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tunnelless.app/Tunnelless
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: Tunnelless-iOS
@@ -244,6 +255,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.mactests
         TEST_TARGET_NAME: Tunnelless-macOS
+        # WHY explicit: xcodegen derives TEST_HOST from the TARGET name,
+        # but PRODUCT_NAME is overridden to "Tunnelless" (Guideline 5.2.5),
+        # so the derived path pointed at a bundle that no longer exists and
+        # CI failed with "Could not find test host".
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tunnelless.app/Contents/MacOS/Tunnelless
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
       - target: Tunnelless-macOS
