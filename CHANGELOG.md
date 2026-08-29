@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **README's Upstream section brought current**, and it now separates *merged*
+  from *shipped* — `tailscale#20985` was listed as "Open, approved" when it had
+  merged on 2026-08-26, and merging is not what retires the carried patch.
+  Added `libtailscale#59` (universal macOS slice, and why it is not what macOS
+  support needs) and `tailscale#21005` (`down()` calls `tailscale_up()`), both
+  of which existed only in TAILSCALE.md. Every state re-verified against GitHub
+  rather than carried over.
+
 ### Added
 
 - **`tailscale-upstream-watch.yml` now decides patch retirement instead of

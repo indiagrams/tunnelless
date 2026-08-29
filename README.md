@@ -255,25 +255,50 @@ the measurements, and four more traps in [TAILSCALE.md](TAILSCALE.md).
 
 ## Upstream
 
-Work found here that has gone upstream:
+Work found here that has gone upstream. States verified against GitHub on
+2026-08-28; where a fix has merged, whether it has *shipped* is stated
+separately, because those are not the same question.
 
 - [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
-  `os.Executable` fallback. **Merged, shipped in v1.98.0.**
+  `os.Executable` fallback. **Merged 2026-03-21, shipped in v1.98.0.** Present
+  in the pinned version, so `build-tailscalekit.sh` reports it already applied.
 - [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) —
   `Close()` nil-deref when `Start()` failed early. Surfaces through TailscaleKit
-  as `EXC_BAD_ACCESS`, masking the real startup error. **Open, approved.**
+  as `EXC_BAD_ACCESS`, masking the real startup error. **Merged 2026-08-26, but
+  carried by no release yet** — `tsnet/tsnet.go` still reads the unpatched
+  `s.sys.Bus.Get().Close()` at both `v1.102.3` and `v1.103.0-pre`. The
+  module-cache patch therefore stays, and bumping would not retire it.
+  `tailscale-upstream-watch.yml` checks this weekly by reading the tagged
+  source; a release tag's date says nothing about what it contains.
 - [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) — makes
   the built xcframework shippable: privacy manifests for the iOS slices
   (ITMS-91053), a macOS slice, and a validator for the failures that only
-  appear at upload. **Open** ([tailscale#20992](https://github.com/tailscale/tailscale/issues/20992)).
+  appear at upload. **Open, changes requested and answered 2026-08-27**
+  ([tailscale#20992](https://github.com/tailscale/tailscale/issues/20992)).
   If it lands, most of `tailscale/build-tailscalekit.sh` becomes unnecessary
   and you can take the xcframework straight from upstream.
 - [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) — runs the
   blocking `tailscale_up` off the actor, so `LocalAPIClient` stops awaiting an
-  actor that `up()` holds for the entire login. **Open**
+  actor that `up()` holds for the entire login. **Open, review changes addressed
+  2026-08-29**
   ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
   Until it lands this repo carries it as
-  `tailscale/patches/0002-up-off-actor.patch`.
+  `tailscale/patches/0002-up-off-actor.patch`. If it lands, delete that patch
+  rather than rebasing it.
+- [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) — a
+  universal (arm64 + x86_64) macOS slice; upstream's Swift `Makefile` builds
+  macOS arm64-only. **Open, no review yet.** It is what a *universal* macOS
+  build needs, not what macOS support needs: setting `ARCHS = arm64` ships
+  today, and Apple accepted an arm64-only Mac App Store package
+  (`altool --validate-app` returned `VERIFY SUCCEEDED with no errors`).
+- [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) —
+  `TailscaleNode.down()` calls `tailscale_up()`. On a node that was never
+  brought up, `down()` returns success and leaves it `Running`: "disconnect"
+  connects. There is no `tailscale_down` anywhere in the C API, so it cannot be
+  fixed by correcting the call. It stayed invisible because upstream's own suite
+  calls `down()` while both nodes are already `Running` — where `tailscale_up()`
+  returns 0, nothing throws, and no state is asserted afterwards. **Open**,
+  filed 2026-08-27 with three suggested resolutions and an offer of a PR.
 
 ### Why this repo still exists
 
