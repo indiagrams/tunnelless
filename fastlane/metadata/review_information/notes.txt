@@ -1,30 +1,31 @@
 IMPORTANT -- NO SEPARATE TAILSCALE APP REQUIRED
 
 Tunnelless has Tailscale built in. Do NOT install the Tailscale app. The sign-in
-screen on first launch is account authentication only -- it connects this app's
-own embedded node to that account's network.
+screen is account authentication only.
 
 ABOUT THIS APP
 
 Tunnelless joins a Tailscale network from inside the app itself, without a VPN
 profile. Only this app's connections use the network; the rest of the device is
 unaffected and any VPN the user already runs keeps working. It is analogous to an
-SSH client: it connects to a network the user already has. Demo credentials are in
-the App Review Information section above.
+SSH client: it connects to a network the user already has.
 
-HOW TO REVIEW
+HOW TO REVIEW -- NO ACCOUNT NEEDED
 
-1. Launch the app. It begins connecting immediately.
-2. A Tailscale sign-in page opens in an in-app browser. Sign in with the demo
-   credentials provided above.
-3. The sheet closes by itself once connected. Tailscale's flow ends on its own
-   website and never redirects back, so the app watches its own node instead --
-   expected, no action needed.
-4. The main screen shows the device's private address (100.x.y.z) and the local
-   SOCKS5 proxy address used to reach other machines.
-5. "Browse tailnet" lists the demo account's devices. Offline devices are expected
-   -- they are simply not powered on. At least one should be online.
-6. "Sign out & reset" removes the node and deletes its stored credentials.
+Tap "Demo mode" on the main screen. The app immediately shows its full interface
+against sample data, with no sign-in and no authentication code:
+
+1. The main screen shows a private address (100.x.y.z) and the local SOCKS5 proxy
+   address the app uses to reach other machines.
+2. "Browse tailnet" lists the machines on the network -- name, address, whether
+   each is reachable, and whether the path is direct or relayed.
+3. "Services" shows saved addresses on that network.
+4. "Sign out & reset" leaves demo mode and clears local state.
+
+Demo mode exists because signing in requires a Tailscale account, and the demo
+account now prompts for an emailed verification code a reviewer cannot receive.
+To review the real sign-in path instead, tap "Connect" and use the demo Tailscale
+credentials above -- that path needs the code; demo mode does not.
 
 VPN -- the app has no VPN features, and collects no user information
 
@@ -32,10 +33,8 @@ The app does not use NetworkExtension: no NEPacketTunnelProvider, no VPN profile
 and it does not request the com.apple.developer.networking.networkextension
 entitlement. It never installs a system VPN, never triggers an "Allow VPN
 configuration" prompt, and never routes or intercepts any other app's traffic.
-
-Instead it links Tailscale's tsnet as a library and runs a userspace network node
-in its own process, exposing a local SOCKS5 proxy only this app uses. The scope of
-the connection is this app's own traffic and nothing else.
+It links tsnet as a library and runs a userspace node in its own process, exposing
+a local SOCKS5 proxy only this app uses.
 
 - What user information is collected: none. No analytics, tracking, telemetry or
   crash reporting. This matches the privacy manifest and the "Data Not Collected"
@@ -49,10 +48,9 @@ the connection is this app's own traffic and nothing else.
 
 SANDBOX (macOS only) -- com.apple.security.network.server is REQUIRED
 
-tsnet binds a listening socket on loopback: the SOCKS5 proxy this same app
-connects through. App Sandbox requires network.server for any listening socket,
-including a loopback-only one. Measured on signed builds of one binary, varying
-only entitlements:
+tsnet binds a listening socket on loopback: the SOCKS5 proxy this app connects
+through. App Sandbox requires network.server for any listening socket, including
+a loopback-only one. Measured on signed builds of one binary, entitlements only:
 
   sandbox alone    -> tailscale_start() res=-1
   + network.client -> res=-1
@@ -75,4 +73,4 @@ endorsed by Tailscale Inc.
 
 Local network permission is requested on first connect, to reach devices on the
 same physical network directly rather than relaying. Declining it does not break
-the app -- connections take the relayed path.
+the app.

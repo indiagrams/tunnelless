@@ -88,10 +88,14 @@ let iosTarget = Target.target(
     ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        // Mirrors project.yml: keeps "iOS" out of the shipped CFBundleName.
+        "PRODUCT_NAME": "Tunnelless",
+        // Module name is internal; pinned so tests need not change.
+        "PRODUCT_MODULE_NAME": "Tunnelless_iOS",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
-        "INFOPLIST_KEY_NSHumanReadableCopyright": "TODO Copyright © 2026 <Your Org>. All rights reserved.",
+        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
     ])
 )
 
@@ -103,7 +107,7 @@ let macInfoPlist: [String: Plist.Value] = [
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
     "LSApplicationCategoryType": "public.app-category.utilities",
-    "NSHumanReadableCopyright": "TODO Copyright © 2026 <Your Org>. All rights reserved.",
+    "NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
     "NSPrincipalClass": "NSApplication",
     // CFBundleIconName intentionally NOT set — its presence makes Sonoma+
     // prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -161,6 +165,10 @@ let macTarget = Target.target(
     ],
     settings: .settings(base: [
         "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        // Mirrors project.yml: PRODUCT_NAME defaults to the target name, which
+        // shipped Tunnelless-macOS.app and drew a Guideline 5.2.5 rejection.
+        "PRODUCT_NAME": "Tunnelless",
+        "PRODUCT_MODULE_NAME": "Tunnelless_macOS",
         // Suppress actool's auto-injection of CFBundleIconName=AppIcon.
         // Empty value = actool emits Assets.car as before but does not set
         // the key, so macOS reads CFBundleIconFile → our hand-rolled .icns.
@@ -222,6 +230,11 @@ let iosUnitTestTarget = Target.target(
     dependencies: [.target(name: "Tunnelless-iOS")],
     settings: .settings(base: [
         "TEST_TARGET_NAME": "Tunnelless-iOS",
+        // WHY explicit: Tuist derives TEST_HOST's executable from the sanitised
+        // TARGET name ("Tunnelless_iOS") while the bundle follows PRODUCT_NAME
+        // ("Tunnelless.app"), so the default path names an executable that does
+        // not exist and the build fails with "Could not find test host".
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Tunnelless",
     ])
 )
 
@@ -236,6 +249,8 @@ let macUnitTestTarget = Target.target(
     dependencies: [.target(name: "Tunnelless-macOS")],
     settings: .settings(base: [
         "TEST_TARGET_NAME": "Tunnelless-macOS",
+        // See the iOS unit-test target. macOS nests the executable in Contents/MacOS.
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Contents/MacOS/Tunnelless",
     ])
 )
 

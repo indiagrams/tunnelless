@@ -86,6 +86,17 @@ struct ContentView: View {
                 .disabled(model.isBusy || model.isRunning)
                 .accessibilityIdentifier(AccessibilityIdentifiers.connectButton)
 
+                if !model.isRunning {
+                    // Visible and unauthenticated on purpose: this is the path App
+                    // Review takes when it cannot receive the demo account's
+                    // verification code.
+                    Button("Demo mode") {
+                        Task { await model.enterDemoMode() }
+                    }
+                    .disabled(model.isBusy)
+                    .accessibilityIdentifier(AccessibilityIdentifiers.demoModeButton)
+                }
+
                 Button("Sign out & reset", role: .destructive) {
                     Task { await model.signOut() }
                 }
@@ -313,8 +324,18 @@ final class DemoModel {
         )
     }
 
+    /// Shows the app's full interface against fixture data, with no account.
+    /// See DemoData.runtimeEnabled for why this is in the shipping app.
+    func enterDemoMode() async {
+        DemoData.runtimeEnabled = true
+        await connect()
+    }
+
     func signOut() async {
         isBusy = true
+        // Leaving demo mode is part of sign-out; otherwise "Connect" would keep
+        // returning fixture data with no way back to a real node.
+        DemoData.runtimeEnabled = false
         logTask?.cancel()
         await manager.signOutAndReset()
         TailnetSnapshotStore.clear()
