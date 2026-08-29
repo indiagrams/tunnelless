@@ -230,6 +230,11 @@ let iosUnitTestTarget = Target.target(
     dependencies: [.target(name: "Tunnelless-iOS")],
     settings: .settings(base: [
         "TEST_TARGET_NAME": "Tunnelless-iOS",
+        // WHY explicit: Tuist derives TEST_HOST's executable from the sanitised
+        // TARGET name ("Tunnelless_iOS") while the bundle follows PRODUCT_NAME
+        // ("Tunnelless.app"), so the default path names an executable that does
+        // not exist and the build fails with "Could not find test host".
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Tunnelless",
     ])
 )
 
@@ -244,6 +249,8 @@ let macUnitTestTarget = Target.target(
     dependencies: [.target(name: "Tunnelless-macOS")],
     settings: .settings(base: [
         "TEST_TARGET_NAME": "Tunnelless-macOS",
+        // See the iOS unit-test target. macOS nests the executable in Contents/MacOS.
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Contents/MacOS/Tunnelless",
     ])
 )
 
