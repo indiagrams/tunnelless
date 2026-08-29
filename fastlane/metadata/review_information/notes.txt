@@ -3,48 +3,53 @@ IMPORTANT -- NO SEPARATE TAILSCALE APP REQUIRED
 Tunnelless has Tailscale built in. Do NOT install the Tailscale app. The sign-in
 screen is account authentication only.
 
-ABOUT THIS APP
-
-Tunnelless joins a Tailscale network from inside the app itself, without a VPN
-profile. Only this app's connections use the network; the rest of the device is
-unaffected and any VPN the user already runs keeps working. It is analogous to an
-SSH client: it connects to a network the user already has.
+Tunnelless joins a Tailscale network from inside the app itself, with no VPN
+profile. Only this app's connections use that network; the rest of the device is
+unaffected and any VPN already running keeps working -- like an SSH client
+reaching a network the user already has.
 
 HOW TO REVIEW -- NO ACCOUNT NEEDED
 
-Tap "Demo mode" on the main screen. The app immediately shows its full interface
-against sample data, with no sign-in and no authentication code:
+Tap "Demo mode" on the main screen. With no sign-in and no authentication code,
+the app immediately shows its full interface against sample data: the device's
+private address (100.x.y.z) and local SOCKS5 proxy address; "Browse tailnet",
+listing each machine with its name, address, reachability and whether the path is
+direct or relayed; "Services", showing saved addresses; and "Sign out & reset",
+which leaves demo mode and clears local state.
 
-1. The main screen shows a private address (100.x.y.z) and the local SOCKS5 proxy
-   address the app uses to reach other machines.
-2. "Browse tailnet" lists the machines on the network -- name, address, whether
-   each is reachable, and whether the path is direct or relayed.
-3. "Services" shows saved addresses on that network.
-4. "Sign out & reset" leaves demo mode and clears local state.
+Demo mode exists because the demo Tailscale account prompts for an emailed code a
+reviewer cannot receive. To review the real sign-in path instead, tap "Connect"
+and use the demo credentials above; only that path needs the code.
 
-Demo mode exists because signing in requires a Tailscale account, and the demo
-account now prompts for an emailed verification code a reviewer cannot receive.
-To review the real sign-in path instead, tap "Connect" and use the demo Tailscale
-credentials above -- that path needs the code; demo mode does not.
+ACCOUNT DELETION -- the app creates no account
 
-VPN -- the app has no VPN features, and collects no user information
+There is no sign-up and no account creation. Signing in authenticates the user to
+a Tailscale account they already hold with a third party; the app never sees
+those credentials.
+
+Sign-in creates two things, removed in two places:
+
+- On the device: a state directory holding the node identity and credentials.
+  "Sign out & reset" on the main screen deletes it, and all other local state, in
+  one action that needs no account.
+- On the user's own Tailscale network: a device entry in their Tailscale admin
+  console. The app cannot remove it -- tsnet exposes no logout or device-removal
+  call -- and it belongs to their own pre-existing account, which they may use
+  from other apps. It is removed in Tailscale's admin console.
+
+VPN -- no VPN features, and no user information collected
 
 The app does not use NetworkExtension: no NEPacketTunnelProvider, no VPN profile,
 and it does not request the com.apple.developer.networking.networkextension
-entitlement. It never installs a system VPN, never triggers an "Allow VPN
-configuration" prompt, and never routes or intercepts any other app's traffic.
-It links tsnet as a library and runs a userspace node in its own process, exposing
-a local SOCKS5 proxy only this app uses.
+entitlement. It never installs a system VPN, never prompts to allow a VPN
+configuration, and never routes or intercepts another app's traffic.
 
-- What user information is collected: none. No analytics, tracking, telemetry or
-  crash reporting. This matches the privacy manifest and the "Data Not Collected"
+- What is collected: nothing. No analytics, tracking, telemetry or crash
+  reporting. This matches the privacy manifest and the "Data Not Collected"
   App Privacy declaration.
 - For what purposes: not applicable, as nothing is collected.
 - Shared with third parties: no. We operate no servers and receive no user data.
-  The user signs in to their own Tailscale account directly with Tailscale, in an
-  ASWebAuthenticationSession against Tailscale's site; the app never sees those
-  credentials. Network state is stored only on the device and deleted on sign out.
-  Tailscale is the user's own network provider, not a party we send data to.
+  Network state is stored only on the device and deleted on sign out.
 
 SANDBOX (macOS only) -- com.apple.security.network.server is REQUIRED
 
@@ -57,9 +62,8 @@ a loopback-only one. Measured on signed builds of one binary, entitlements only:
   + network.server -> res=0
 
 Without it the node never starts and the app cannot connect. The app accepts no
-inbound connections from outside the device; the listener is on loopback. The
-userspace WireGuard transport must also receive UDP from the user's own peers and
-from DERP relays, which is inherent to WireGuard.
+inbound connections from outside the device. The userspace WireGuard transport
+must also receive UDP from the user's own peers and from DERP relays.
 
 ENCRYPTION
 
@@ -67,10 +71,8 @@ All traffic uses WireGuard (ChaCha20-Poly1305 + Curve25519), open-source exempt
 encryption under EAR 740.17(b)(3)(iii). ITSAppUsesNonExemptEncryption is set to
 false in Info.plist -- the app uses only exempt encryption. No ERN required.
 
-Tunnelless has no user accounts, servers, or sign-up of its own. Tailscale is a
-registered trademark of Tailscale Inc.; Tunnelless is not affiliated with or
-endorsed by Tailscale Inc.
-
 Local network permission is requested on first connect, to reach devices on the
-same physical network directly rather than relaying. Declining it does not break
-the app.
+same physical network directly rather than relaying. Declining it still works.
+
+Tailscale is a registered trademark of Tailscale Inc.; Tunnelless is not
+affiliated with or endorsed by Tailscale Inc.
