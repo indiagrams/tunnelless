@@ -283,10 +283,24 @@ final class DemoModel {
     func presentLogin() async {
         guard let url = authURL, !isPresentingLogin else { return }
         isPresentingLogin = true
-        let ok = await WebAuthLogin.present(url: url, dismissWhen: manager.currentUpTask())
+        let outcome = await WebAuthLogin.present(url: url, dismissWhen: manager.currentUpTask())
+        // ALWAYS clear the latch, on every outcome. This is the line that keeps the
+        // sign-in button alive: the guard above rejects every later tap while
+        // `isPresentingLogin` is set, so a path that leaves it set turns the button
+        // permanently dead — which is indistinguishable, to a user or an App Review
+        // engineer, from a button that does nothing at all.
         isPresentingLogin = false
-        if !ok {
+        switch outcome {
+        case .completed:
+            errorText = nil
+        case .cancelled:
             statusText = "login cancelled"
+        case let .failedToPresent(reason):
+            // Say it out loud rather than sitting on "waiting for login…". A sign-in
+            // that cannot start is a bug report, not a state to wait in.
+            statusText = "sign-in unavailable"
+            errorText = "Could not open the Tailscale sign-in page — \(reason). "
+                + "Try again, or use Demo mode."
         }
     }
 
@@ -303,6 +317,15 @@ final class DemoModel {
                 return
             }
             try? await Task.sleep(for: .milliseconds(500))
+        }
+        // Fell through: no auth URL in ~20s and the node is not up. Previously this
+        // returned silently and the UI kept saying "waiting for login…" forever,
+        // with no button and no explanation. Say what happened; `connect()` can
+        // still finish if the node comes up on its own.
+        if authURL == nil, !isRunning {
+            statusText = "no sign-in link yet"
+            errorText = "Tailscale has not returned a sign-in link yet. "
+                + "Check the network connection and press Connect again, or use Demo mode."
         }
     }
 
