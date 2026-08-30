@@ -256,7 +256,7 @@ the measurements, and four more traps in [TAILSCALE.md](TAILSCALE.md).
 ## Upstream
 
 Work found here that has gone upstream. States verified against GitHub on
-2026-08-28; where a fix has merged, whether it has *shipped* is stated
+2026-08-30; where a fix has merged, whether it has *shipped* is stated
 separately, because those are not the same question.
 
 - [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
@@ -293,7 +293,11 @@ separately, because those are not the same question.
   requirement propagates to the whole framework. **Open**
   ([tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)).
   Measured by building at each floor: gating moves it to **iOS 17 / macOS 14**,
-  where the next constraint is `ProxyConfiguration`. Carried meanwhile as
+  where the next constraint is `ProxyConfiguration`. Since verified at
+  *runtime*, not just compiled: on an iOS 17.5 simulator the app loads a
+  framework built with this diff, while the pre-gating build is refused by dyld
+  (`built for iOS-sim 18.1 which is newer than running OS`). Reproduce with
+  `tailscale/verify-floor-runtime.sh`. Carried meanwhile as
   `tailscale/patches/0003-gate-listener-api.patch`; if it lands, delete that
   patch rather than rebasing it.
 - [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) — a
@@ -302,6 +306,18 @@ separately, because those are not the same question.
   build needs, not what macOS support needs: setting `ARCHS = arm64` ships
   today, and Apple accepted an arm64-only Mac App Store package
   (`altool --validate-app` returned `VERIFY SUCCEEDED with no errors`).
+- [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61) — lets
+  the environment override `MACOS_TARGET`. The Makefile uses `:=`, so
+  `MACOS_TARGET=14.0 make c-archive` silently builds 15.0 and exits 0; only
+  `make MACOS_TARGET=14.0 c-archive` works. **Open**, filed 2026-08-30
+  ([tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)).
+  This repo is not affected — `build-tailscalekit.sh` already passes it on the
+  command line — but it is a trap for anyone lowering the macOS floor, which is
+  exactly what #60 invites. It matters more than a usual ignored override,
+  because the Go archive and the Swift target must move together: lower only
+  one and the framework is *stamped* with a floor its objects do not support,
+  which `otool` cannot detect (it reports the number the binary claims) and
+  which surfaces only as a single `ld: warning` line.
 - [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) —
   `TailscaleNode.down()` calls `tailscale_up()`. On a node that was never
   brought up, `down()` returns success and leaves it `Running`: "disconnect"
