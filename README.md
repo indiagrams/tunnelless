@@ -285,6 +285,17 @@ separately, because those are not the same question.
   Until it lands this repo carries it as
   `tailscale/patches/0002-up-off-actor.patch`. If it lands, delete that patch
   rather than rebasing it.
+- [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) — gates
+  the listener API behind `@available`, so a consumer that never accepts an
+  inbound connection is not forced to iOS 18 / macOS 15 by an API it does not
+  call. `Listener.state()` returns `any AsyncSequence<ListenerState, Never>`,
+  whose `Failure` associated type is iOS 18 / macOS 15 only, and the unannotated
+  requirement propagates to the whole framework. **Open**
+  ([tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)).
+  Measured by building at each floor: gating moves it to **iOS 17 / macOS 14**,
+  where the next constraint is `ProxyConfiguration`. Carried meanwhile as
+  `tailscale/patches/0003-gate-listener-api.patch`; if it lands, delete that
+  patch rather than rebasing it.
 - [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) — a
   universal (arm64 + x86_64) macOS slice; upstream's Swift `Makefile` builds
   macOS arm64-only. **Open, no review yet.** It is what a *universal* macOS
