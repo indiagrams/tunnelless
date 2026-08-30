@@ -36,9 +36,14 @@ let package = Package(
     name: "TailscaleKit",
     // Matches the slices actually present in the xcframework: ios-arm64,
     // ios-arm64_x86_64-simulator, macos-arm64.
+    // These MUST match the `minos` of the slices in the binary, not the
+    // versions we would like to support. SwiftPM does not check them: declare a
+    // lower floor and a consumer resolves, links and ships happily, then dyld
+    // refuses the framework at launch on any OS below the real minimum.
+    // ci/check-platform-floors.sh asserts these against the built slices.
     platforms: [
-        .iOS(.v17),
-        .macOS(.v14),
+        .iOS("18.1"),
+        .macOS("15.6"),
     ],
     products: [
         .library(name: "TailscaleKit", targets: ["TailscaleKit"]),

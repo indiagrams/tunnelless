@@ -237,6 +237,13 @@ jobs:
           # compile error 3 minutes later.
           bash tailscale/validate-xcframework.sh
 
+      # Runs here rather than as its own job because it needs the fetched
+      # xcframework to read `minos` from. validate-xcframework.sh checks the
+      # bundle is well-formed; this checks that what we PROMISE about it is
+      # true — a floor below the slice ships and then refuses to launch.
+      - name: check declared platform floors against the slices
+        run: ./ci/check-platform-floors.sh
+
       - name: install xcbeautify + generator
         run: |
           brew install xcbeautify
