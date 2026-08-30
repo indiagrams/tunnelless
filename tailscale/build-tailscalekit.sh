@@ -206,14 +206,52 @@ else
   echo "WARNING: $TSNET_GO not found — run 'go mod download' in vendor/libtailscale first"
 fi
 
-echo "--- Running make ios (iOS device arm64, ~2-3 min) ---"
-make ios
+# Deployment floors for the built slices.
+#
+# NOT upstream's defaults. TailscaleKit.xcodeproj sets IPHONEOS_DEPLOYMENT_TARGET
+# 18.1 and MACOSX_DEPLOYMENT_TARGET 15.0/15.6 — higher than anything the code
+# needs, and the 15.6 is an outlier even within upstream's own project (six
+# targets say 15.0, two say 15.6). With patch 0003 gating the listener API, the
+# real floors are set by ProxyConfiguration in URLSession+Tailscale.swift:
+# iOS 17, macOS 14. Measured by building at each value, not assumed — see
+# TAILSCALE.md, "Deployment floors".
+#
+# WHY the Go archive target moves with the Swift one on macOS: building only the
+# Swift half at a lower floor SUCCEEDS, and produces a framework stamped with the
+# lower number while containing Go objects built for 15.0. The only signal is
+# `ld: warning: object file ... was built for newer 'macOS' version (15.0) than
+# being linked (14.0)` in an otherwise green build — a binary that lies about its
+# own floor, which is the exact failure ci/check-platform-floors.sh exists to
+# catch and cannot: that check reads LC_BUILD_VERSION, which would say 14.0.
+#
+# iOS needs no equivalent: swift/script/clangwrap-ios.sh already builds the Go
+# side with -mios-version-min=12.0, well below anything the Swift layer allows.
+IOS_MIN=17.0
+MACOS_MIN=14.0
 
-echo "--- Running make ios-sim (iOS Simulator arm64+x86_64, ~2-3 min) ---"
-make ios-sim
+# Deliberately not piped to a prettifier: piping reports the PRETTIFIER's exit
+# code, so a failed build reads as success. This repo has paid for that once.
+echo "--- Building iOS slice (device arm64, min $IOS_MIN, ~2-3 min) ---"
+( cd .. && make c-archive-ios )
+mkdir -p build
+xcodebuild build -scheme "TailscaleKit (iOS)" \
+  -derivedDataPath build -configuration Release \
+  -destination 'generic/platform=iOS' \
+  CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="$IOS_MIN"
 
-echo "--- Running make macos (macOS arm64, requires macOS 15.0+, ~2-3 min) ---"
-make macos
+echo "--- Building iOS Simulator slice (arm64+x86_64, min $IOS_MIN, ~2-3 min) ---"
+( cd .. && make c-archive-ios-sim )
+xcodebuild build -scheme "TailscaleKit (Simulator)" \
+  -derivedDataPath build -configuration Release \
+  -destination 'generic/platform=iOS Simulator' \
+  CODE_SIGNING_ALLOWED=NO IPHONEOS_DEPLOYMENT_TARGET="$IOS_MIN"
+
+echo "--- Building macOS slice (arm64, min $MACOS_MIN, ~2-3 min) ---"
+( cd .. && make MACOS_TARGET="$MACOS_MIN" c-archive )
+xcodebuild build -scheme "TailscaleKit (macOS)" \
+  -derivedDataPath build -configuration Release \
+  -destination 'platform=macOS,arch=arm64' \
+  CODE_SIGNING_ALLOWED=NO MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN"
 
 # Framework paths after build
 IOS_FW="./build/Build/Products/Release-iphoneos/TailscaleKit.framework"

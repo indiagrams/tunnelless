@@ -15,6 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Deployment floors lowered to iOS 17.0 / macOS 14.0** (from 18.1 / 15.6) for
+  the *next* xcframework build. `tailscale/patches/0003-gate-listener-api.patch`
+  gates TailscaleKit's two listener actors behind `@available`, which confines
+  their iOS 18 / macOS 15 requirement to themselves instead of the whole
+  framework — this app is a pure client and never calls them. Every number was
+  measured by building at it: unpatched the real floor is 18.0/15.0, and
+  upstream's shipped 18.1/15.6 is above even that. Sent upstream as
+  [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60);
+  **when it lands, delete the patch — do not rebase it.**
+
+  The floors in `app/` and `Package.swift` deliberately stay at 18.1/15.6 until a
+  new xcframework is published: they must describe the binary consumers actually
+  resolve, not the one we can now build. `ci/check-platform-floors.sh` enforces
+  that ordering on its own.
+
 ### Added
 
 - **`ci/check-app-icon.sh` — the build now refuses a placeholder icon.** Build 1
