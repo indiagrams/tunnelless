@@ -15,6 +15,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Module-cache Patch 1 (darwin `os.Executable` fallback) is gone.** It merged
+  upstream as `tailscale#19052` and shipped in **v1.98.0**; the pin has been
+  `v1.102.3` since the last bump, so the block did nothing but print "already
+  applied" on every build — confirmed by reading `case "ios", "darwin":` in
+  `tsnet.go` at the tag, not by trusting the release date. First item of v0.2's
+  "carry less" to actually land.
+
+  It was kept in case the dependency were ever pinned below v1.98. That scenario
+  is now guarded explicitly: `build-tailscalekit.sh` hard-fails on such a pin
+  with the reason and a `git log -S` pointer to recover the patch, instead of
+  letting `TailscaleNode.init()` fail at runtime with "tsnet: cannot find
+  executable path". Boundary verified — `v1.98.0` accepted, `v1.96.4` rejected.
+
 ### Changed
 
 - **Deployment floors lowered to iOS 17.0 / macOS 14.0** (from 18.1 / 15.6) for
