@@ -225,8 +225,33 @@ jobs:
             echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
-          TAG="tailscalekit-${TSNET_VERSION}"
-          echo "tailscale.com ${TSNET_VERSION} (from go.mod) -> release ${TAG} in ${TSKIT_REPO}"
+          # Resolve the tag from Package.swift, NOT from the version alone.
+          #
+          # The artifact can change while the tsnet version does not -- adding a
+          # patch or moving the deployment floors produces a different binary
+          # from the same tailscale.com release, published as `+N`. Deriving the
+          # tag from the version alone made CI build against a DIFFERENT artifact
+          # than consumers resolve, which is how this step and Package.swift
+          # silently drifted apart.
+          #
+          # Package.swift is the single source of truth: it is what a SwiftPM
+          # consumer actually fetches. verify-package-manifest.sh already asserts
+          # its URL names the pinned tsnet version, so trusting it here does not
+          # weaken the version check.
+          TAG="$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift | head -1 | sed 's|download/||; s|/$||')"
+          if [ -z "$TAG" ]; then
+            echo "::error::could not resolve the xcframework tag from Package.swift"
+            exit 1
+          fi
+          case "$TAG" in
+            "tailscalekit-${TSNET_VERSION}"|"tailscalekit-${TSNET_VERSION}+"*) ;;
+            *)
+              echo "::error::Package.swift points at $TAG but tailscale/TAILSCALE_VERSION is $TSNET_VERSION."
+              echo "CI would build against a different tsnet version than the repo pins."
+              exit 1
+              ;;
+          esac
+          echo "tailscale.com ${TSNET_VERSION} -> release ${TAG} in ${TSKIT_REPO} (from Package.swift)"
           gh release download "$TAG" \
             --repo "$TSKIT_REPO" \
             --pattern 'TailscaleKit.xcframework.zip' \

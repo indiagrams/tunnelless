@@ -30,7 +30,7 @@ import PackageDescription
 // Hoisted so the line fits SwiftLint's 140-char limit. It must stay on ONE
 // line and keep this exact shape: tailscale/verify-package-manifest.sh greps
 // the URL out of this file to check it still matches the pinned version.
-let assetURL = "https://github.com/indiagrams/tunnelless/releases/download/tailscalekit-v1.102.3/TailscaleKit.xcframework.zip"
+let assetURL = "https://github.com/indiagrams/tunnelless/releases/download/tailscalekit-v1.102.3+2/TailscaleKit.xcframework.zip"
 
 let package = Package(
     name: "TailscaleKit",
@@ -42,8 +42,8 @@ let package = Package(
     // refuses the framework at launch on any OS below the real minimum.
     // ci/check-platform-floors.sh asserts these against the built slices.
     platforms: [
-        .iOS("18.1"),
-        .macOS("15.6"),
+        .iOS("17.0"),
+        .macOS("14.0"),
     ],
     products: [
         .library(name: "TailscaleKit", targets: ["TailscaleKit"]),
@@ -54,7 +54,7 @@ let package = Package(
         .binaryTarget(
             name: "TailscaleKit",
             url: assetURL,
-            checksum: "0b73d55c44174951693cf02abcdcb75f854931d95c61a1628bda550a7ab91bba"
+            checksum: "b9cf64e6298c548e1edc28c47b503b5f6f14237d21ef3a5c2c4e3559dc8fb0c4"
         ),
     ]
 )

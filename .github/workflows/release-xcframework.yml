@@ -28,6 +28,11 @@ on:
         required: false
         type: boolean
         default: false
+      build:
+        description: 'Build suffix, e.g. 2 -> tailscalekit-v1.102.3+2. Use when the ARTIFACT changes but the tsnet version does not (a patch was added, removed, or the deployment floors moved). Leave empty for the plain version tag.'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -59,9 +64,28 @@ jobs:
             echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
-          TAG="tailscalekit-${VERSION}"
+          # The artifact can change while the tsnet version does not: adding or
+          # removing a patch, or moving the deployment floors, produces a
+          # different binary from the same tailscale.com release. A tag scheme
+          # that cannot express that forces a choice between clobbering a
+          # published asset and not publishing at all.
+          #
+          # Clobbering is not neutral. Package.swift pins by checksum precisely
+          # so a rewritten asset FAILS resolution rather than silently swapping
+          # the binary underneath a consumer — replacing an asset in place turns
+          # that protection against everyone already pinned to it.
+          #
+          # So an optional build suffix. Empty input reproduces the old tag
+          # exactly, byte for byte.
+          BUILD="$(echo "${{ inputs.build }}" | tr -d '[:space:]')"
+          case "$BUILD" in
+            ''|[0-9]*) ;;
+            *) echo "::error::build suffix must be numeric (got '$BUILD')"; exit 1 ;;
+          esac
+          TAG="tailscalekit-${VERSION}${BUILD:++$BUILD}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: $TAG"
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             if [ "${{ inputs.force }}" = "true" ]; then
@@ -70,12 +94,29 @@ jobs:
             else
               echo "exists=skip" >> "$GITHUB_OUTPUT"
               echo "$TAG already published — nothing to do."
+              # Say it loudly. Every build step below is gated on this, so a
+              # skipping run goes green having compiled nothing — which is how a
+              # broken build path stayed invisible across four merges that
+              # changed what the framework would contain.
+              echo "::notice::$TAG already published: no build ran. This run verifies nothing about the build path. Dispatch with a build suffix to publish a rebuilt artifact."
             fi
           else
             echo "exists=create" >> "$GITHUB_OUTPUT"
             echo "Will publish $TAG"
           fi
 
+      # go-version-file reads vendor/libtailscale/go.mod, which states
+      # LIBTAILSCALE's floor -- not the floor of the tailscale.com release this
+      # build pulls in. Those diverge: the submodule declares go 1.25.5 while
+      # tailscale.com@v1.102.3 requires >= 1.26.6.
+      #
+      # setup-go then pins GOTOOLCHAIN=local, so Go may not fetch what the
+      # module demands, and `go get tailscale.com@$VERSION` fails with
+      # "requires go >= 1.26.6 (running go 1.25.5; GOTOOLCHAIN=local)".
+      #
+      # GOTOOLCHAIN=auto lets Go fetch whatever the pinned tailscale.com needs.
+      # Deliberately not a hardcoded go-version: that would have to be bumped by
+      # hand on every tsnet bump, and being wrong looks exactly like this did.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         if: steps.tag.outputs.exists != 'skip'
         with:
@@ -84,9 +125,36 @@ jobs:
 
       - name: build the xcframework
         if: steps.tag.outputs.exists != 'skip'
+        env:
+          GOTOOLCHAIN: auto
         run: |
           set -o pipefail
-          bash tailscale/build-tailscalekit.sh 2>&1 | tail -30
+          # Full log to a file; tail only for the console. `| tail -30` alone
+          # discards the rest, and the one signal that distinguishes a framework
+          # built for a floor from one that merely CLAIMS that floor is an
+          # `ld: warning` emitted early in the macOS link.
+          bash tailscale/build-tailscalekit.sh 2>&1 | tee /tmp/xcf-build.log | tail -30
+
+          # A deployment-target mismatch between the Go archive and the Swift
+          # framework builds clean and stamps the lower number anyway.
+          # ci/check-platform-floors.sh cannot catch it -- it reads
+          # LC_BUILD_VERSION, which is the number the binary claims. This log
+          # line is the only evidence, so assert on it rather than hoping
+          # somebody reads it.
+          if grep -q "was built for newer 'macOS' version" /tmp/xcf-build.log; then
+            echo "::error::The Go archive and the Swift framework disagree on the macOS floor."
+            grep -m3 "was built for newer 'macOS' version" /tmp/xcf-build.log
+            echo "The published framework would claim a floor it cannot honour."
+            exit 1
+          fi
+
+      - name: upload the full build log
+        if: always() && steps.tag.outputs.exists != 'skip'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: xcframework-build-log
+          path: /tmp/xcf-build.log
+          if-no-files-found: ignore
 
       # Never publish an artifact that has not passed the checks Apple rejects
       # for. These fail at upload time, not build time, which is the whole
