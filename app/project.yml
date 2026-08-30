@@ -7,14 +7,23 @@ name: Tunnelless
 options:
   bundleIdPrefix: com.example
   deploymentTarget:
-    # 18.1, not 17.0: same reason as macOS below — TailscaleKit's ios-arm64
-    # slice is built with minos 18.1. A lower floor links, ships, installs from
-    # the App Store on iOS 17, and then dyld refuses the framework at launch.
+    # These MUST match the minos of the TailscaleKit slice each target loads —
+    # not "should", must. TailscaleKit is a dylib, so dyld checks its
+    # LC_BUILD_VERSION at load time: declare a floor below the slice and the app
+    # links, ships, installs from the App Store on the OS you promised, and then
+    # dies at launch when dyld refuses the framework. Nothing in the build
+    # objects; at most one `ld: warning`.
+    #
+    # As of tailscalekit-v1.102.3+2 the slices are minos 17.0 (ios-arm64,
+    # ios-arm64_x86_64-simulator) and 14.0 (macos-arm64), lowered by patch
+    # `0003-gate-listener-api.patch`. They were 18.1 / 15.6 before that.
+    #
+    # Move these only in step with a published slice, and in all three
+    # declaration sites together — here, app/Project.swift and Package.swift.
+    # `ci/check-platform-floors.sh` enforces exactly that against the fetched
+    # xcframework, because the last two floor bugs both reached a submitted
+    # build with CI green.
     iOS: "17.0"
-    # 15.6, not 14.0: TailscaleKit's macOS slice is built with minos 15.6, so a
-    # lower floor links and then fails to load at runtime on anything older —
-    # dyld refuses the framework and the app dies at launch. Raise this only in
-    # step with the slice; lowering it needs upstream to lower MACOS_TARGET.
     macOS: "14.0"
   developmentLanguage: en
   generateEmptyDirectories: true
