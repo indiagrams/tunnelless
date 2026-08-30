@@ -255,7 +255,7 @@ Everything this project has filed upstream, newest first.
 | [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
 | [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) | Makes the built xcframework distributable: privacy manifests (ITMS-91053), a macOS slice, a validator for upload-only failures | **Open** |
 | [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) | `Close()` nil-deref when `Start()` failed early — surfaces as `EXC_BAD_ACCESS`, masking the real startup error | **Merged** 2026-08-26, but in *no release yet* — absent from `v1.102.3` and from `v1.103.0-pre` |
-| [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 |
+| [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 — patch **removed** 2026-08-29; `build-tailscalekit.sh` now hard-fails if pinned below v1.98.0 rather than carrying it |
 
 If #57 lands, most of `build-tailscalekit.sh` becomes redundant. If #58 lands,
 `tailscale/patches/0002-up-off-actor.patch` can be dropped and status/peer data

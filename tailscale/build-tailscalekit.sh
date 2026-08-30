@@ -111,38 +111,30 @@ if [ ! -f "$TSNET_GO" ]; then
   exit 1
 fi
 
-# Patch 1: darwin os.Executable fallback in tsnet.start().
-# Our PR #19052 (prakashrj:tsnet-darwin-executable-fallback) merged into tailscale:main
-# on 2026-03-21 and first SHIPPED in v1.98.0 — it is NOT in v1.96.4, whose release branch
-# was cut before the merge. When TailscaleKit runs as a macOS framework and the fallback
-# is absent, os.Executable() returns an error and the default: branch propagates it,
-# failing TailscaleNode.init() with "tsnet: cannot find executable path".
-# On v1.98.0+ this is upstream and the check below reports "already applied" — the block
-# is kept only so the build still works if the dependency is ever pinned back below v1.98.
-if [ -f "$TSNET_GO" ]; then
-  chmod u+w "$TSNET_GO" 2>/dev/null || true
-  if grep -q '"ios", "darwin"' "$TSNET_GO"; then
-    echo "--- darwin os.Executable fallback already applied ---"
-  elif grep -q '"ios":' "$TSNET_GO"; then
-    python3 -c "
-p = '$TSNET_GO'
-with open(p, 'r') as f:
-    c = f.read()
-old = 'case \"ios\":\n\t\t\t// When compiled as a framework (via TailscaleKit in libtailscale),\n\t\t\t// os.Executable() returns an error, so fall back to \"tsnet\" there\n\t\t\t// too.\n\t\t\texe = \"tsnet\"'
-new = 'case \"ios\", \"darwin\":\n\t\t\t// When compiled as a framework (via TailscaleKit in libtailscale),\n\t\t\t// os.Executable() returns an error on both iOS and macOS, so fall\n\t\t\t// back to \"tsnet\" there too.\n\t\t\texe = \"tsnet\"'
-if old in c:
-    with open(p, 'w') as f:
-        f.write(c.replace(old, new))
-    print('--- Applied darwin os.Executable fallback patch ---')
-else:
-    print('WARNING: darwin fallback pattern not found in tsnet.go')
-"
-  else
-    echo "WARNING: darwin os.Executable fallback — tsnet.go pattern unexpected"
-  fi
-else
-  echo "WARNING: $TSNET_GO not found — run 'go mod download' in vendor/libtailscale first"
-fi
+# Patch 1 (darwin os.Executable fallback, tailscale#19052) was REMOVED 2026-08-29.
+#
+# It merged upstream 2026-03-21 and shipped in v1.98.0. The pin has been v1.102.3
+# since the last bump, so the block did nothing but print "already applied" on
+# every build — verified by reading `case "ios", "darwin":` in tsnet.go at the
+# tag, not by trusting the release date.
+#
+# It was kept "in case the dependency is ever pinned back below v1.98". That is a
+# real scenario and it is now unguarded: pinning below v1.98 will fail
+# TailscaleNode.init() with "tsnet: cannot find executable path". The guard below
+# turns that into a clear error instead of a confusing runtime one, which is the
+# trade v0.2 asks for — carry nothing an adopter would inherit.
+case "$TSNET_VERSION" in
+  v1.9[0-7].*|v1.[0-8][0-9].*)
+    echo "ERROR: TAILSCALE_VERSION is $TSNET_VERSION, below v1.98.0."
+    echo "       The darwin os.Executable fallback (tailscale#19052) first shipped in"
+    echo "       v1.98.0, and this repo no longer carries it as a patch. Without it,"
+    echo "       TailscaleNode.init() fails with 'tsnet: cannot find executable path'"
+    echo "       when TailscaleKit runs as a macOS framework."
+    echo "       Either pin v1.98.0 or newer, or restore the patch from git history:"
+    echo "         git log -S 'darwin os.Executable fallback' -- tailscale/build-tailscalekit.sh"
+    exit 1
+    ;;
+esac
 
 # Patch 2: Bus nil guard in tsnet.close().
 # STILL REQUIRED — this one is NOT upstream. Verified present in unpatched form
