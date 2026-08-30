@@ -52,6 +52,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reaches users with the next app build. The declarations changing does not
   alter the `0.1.0` binaries currently in App Review.
 
+### Fixed
+
+- **`make ship` recorded almost nothing about the release it had just run.** A real ship produced a **13-line log** — every line printed by `bin/ship.rb` itself, none from the multi-minute `fastlane release` those lines described. Redirecting changed nothing: the output never left the Ruby process. `Bootstrap::Sh.run` wraps `Open3.capture3`, which buffers until exit and discards stderr, and `ship.rb` then dropped the captured string on success and printed stdout without stderr on failure — so **a ship that FAILED was exactly as undiagnosable as one that succeeded**, which is backwards. Diagnosing the v0.1.0+6 ship meant reconstructing events from fastlane's `report.xml` and the ASC API.
+
+  Fixed **upstream** in apple-shipkit ([#276](https://github.com/indiagrams/apple-shipkit/pull/276)) rather than here, because `bin/` is template-owned and `bin/ship.rb` was byte-identical to the template — a fork edit would conflict on every sync for a bug with nothing project-specific about it. Cherry-picked in as `5bb986f` so this repo gets it without the full 271-commit upstream merge, which would also touch `fastlane/metadata/` and could clobber the live App Review notes while both `0.1.0` submissions are queued with Apple.
+
+  Adds `Bootstrap::Sh.stream` (tees a child's merged stdout+stderr as it arrives via `popen2e`; passes `chdir:` as a spawn option instead of mutating the process-global cwd for a whole release) and `test/sh_stream_test.rb` — 10 stdlib-only assertions wired as the `stream-regression` CI job, two of them **controls** asserting the old path fails what the new one passes. Mutation-verified: restoring the `capture3` body fails 5 of the 10.
+
 ### Removed
 
 - **Module-cache Patch 1 (darwin `os.Executable` fallback) is gone.** It merged
