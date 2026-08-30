@@ -121,6 +121,11 @@ step "preflight: App Review trigger explanations"
 step "preflight: app icon is not a placeholder"
 ./ci/check-app-icon.sh
 
+# A deployment target below the framework's minos builds clean and dies at
+# launch on exactly the OS versions it claims to support. Shipped twice here.
+step "preflight: platform floors match the framework slices"
+./ci/check-platform-floors.sh
+
 # Verifies the claim notes.txt makes about the demo tailnet. Warns (does not
 # fail) when TS_DEMO_API_KEY is unset. See the script header.
 step "preflight: App Review demo account"

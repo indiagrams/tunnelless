@@ -7,7 +7,10 @@ name: Tunnelless
 options:
   bundleIdPrefix: com.example
   deploymentTarget:
-    iOS: "17.0"
+    # 18.1, not 17.0: same reason as macOS below — TailscaleKit's ios-arm64
+    # slice is built with minos 18.1. A lower floor links, ships, installs from
+    # the App Store on iOS 17, and then dyld refuses the framework at launch.
+    iOS: "18.1"
     # 15.6, not 14.0: TailscaleKit's macOS slice is built with minos 15.6, so a
     # lower floor links and then fails to load at runtime on anything older —
     # dyld refuses the framework and the app dies at launch. Raise this only in
