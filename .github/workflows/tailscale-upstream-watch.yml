@@ -77,27 +77,45 @@ jobs:
           fi
           echo "Pinned: $PINNED   Latest stable: $LATEST"
 
-          # Patch drift. 20985 is the one build-tailscalekit.sh actively
-          # patches in; 19052 is already merged and is checked only so the
-          # note in TAILSCALE.md can be retired when it is no longer relevant.
-          merged_state () {
-            gh pr view "$1" --repo tailscale/tailscale --json state -q .state 2>/dev/null || echo UNKNOWN
-          }
-          P20985="$(merged_state 20985)"
-          echo "p20985=$P20985" >> "$GITHUB_OUTPUT"
-          echo "tailscale#20985: $P20985"
+          # ── Carried patches, and what retires each ────────────────────────
+          #
+          # One row per carried patch. A patch with no row FAILS this workflow:
+          # the darwin fallback sat inert from the v1.98.0 bump until 2026-08-29
+          # because the only thing that would have noticed was a person
+          # re-reading a comment, and prose does not notice.
+          #
+          #   kind=merge    retirable as soon as the upstream PR is MERGED. This
+          #                 repo builds TailscaleKit from source at
+          #                 vendor/libtailscale, so a merge is sufficient.
+          #   kind=release  merge is NOT sufficient. The Go module cache resolves
+          #                 a RELEASED version, so the test is containment in the
+          #                 tagged source.
+          #   kind=manual   not upstream-gated; retirement is a human decision.
+          #
+          # Confusing merge- and release-gated is the bug in both directions:
+          # one leaves a patch carried for months, the other deletes a patch
+          # whose fix is not in the pinned version.
+          #
+          # fields: file|kind|repo|number
+          PATCH_ROWS="
+          0002-up-off-actor.patch|merge|libtailscale|58
+          0003-gate-listener-api.patch|merge|libtailscale|60
+          0001-tailscalekit-nslog-tracing.patch|manual||
+          @module-cache-bus-guard|release|tailscale|20985
+          "
 
-          # Does a given tag's tsnet.go already carry the fix?
+          merged_state () {
+            gh pr view "$2" --repo "tailscale/$1" --json state -q .state 2>/dev/null || echo UNKNOWN
+          }
+
+          # Does a given tag's tsnet.go already carry the #20985 fix?
           #
           # Answered from the TAGGED SOURCE. Not from the release date, which says
           # nothing about containment, and not from `compare/<tag>...<sha>`, which
           # answers a question about ancestry that a backport would get wrong.
           #
-          # The sentinel is the call upstream actually merged in #20985
-          # (`if bus, ok := s.sys.Bus.GetOK(); ok && bus != nil`) -- confirmed
-          # against the PR diff, not assumed from our own patch. It is also the
-          # form build-tailscalekit.sh patches in, so when this says yes, the
-          # build script's own "already applied" branch is what will fire.
+          # The sentinel is the call upstream actually merged in #20985 --
+          # confirmed against the PR diff, not assumed from our own patch.
           #
           # A failed fetch returns UNKNOWN, never "no". Reporting a fetch failure
           # as "not contained" would be the same silent-success failure this
@@ -111,18 +129,82 @@ jobs:
             if printf '%s' "$src" | grep -q 'Bus.GetOK()'; then echo yes; else echo no; fi
           }
 
-          FIX_PINNED="$(contains_fix "$PINNED")"
-          FIX_LATEST="$(contains_fix "$LATEST")"
-          echo "fix_pinned=$FIX_PINNED" >> "$GITHUB_OUTPUT"
-          echo "fix_latest=$FIX_LATEST" >> "$GITHUB_OUTPUT"
-          echo "#20985 in $PINNED: $FIX_PINNED   in $LATEST: $FIX_LATEST"
+          # Is the patch still carried?
+          patch_present () {
+            case "$1" in
+              @module-cache-bus-guard) grep -q 'Bus.GetOK()' tailscale/build-tailscalekit.sh && echo true || echo false ;;
+              *) [ -f "tailscale/patches/$1" ] && echo true || echo false ;;
+            esac
+          }
 
-          # Does the build script still think it needs to patch?
-          if grep -q '20985' tailscale/build-tailscalekit.sh; then
-            echo "patch_present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "patch_present=false" >> "$GITHUB_OUTPUT"
-          fi
+          ROWS=""          # rendered markdown rows
+          ACTIONABLE=0     # how many patches can be deleted now
+          UNRESOLVED=0     # how many probes failed
+
+          while IFS='|' read -r FILE KIND REPO NUM; do
+            FILE="$(echo "$FILE" | tr -d '[:space:]')"; [ -z "$FILE" ] && continue
+            KIND="$(echo "$KIND" | tr -d '[:space:]')"
+            REPO="$(echo "$REPO" | tr -d '[:space:]')"
+            NUM="$(echo "$NUM"  | tr -d '[:space:]')"
+            PRESENT="$(patch_present "$FILE")"
+
+            case "$KIND" in
+              merge)
+                ST="$(merged_state "$REPO" "$NUM")"
+                LINK="[${REPO}#${NUM}](https://github.com/tailscale/${REPO}/pull/${NUM})"
+                if [ "$ST" = "UNKNOWN" ]; then
+                  VERDICT=":warning: could not read upstream state"; UNRESOLVED=$((UNRESOLVED+1))
+                elif [ "$ST" = "MERGED" ] && [ "$PRESENT" = "true" ]; then
+                  VERDICT=":warning: **MERGED — delete \`$FILE\`, do not rebase it**"; ACTIONABLE=$((ACTIONABLE+1))
+                elif [ "$PRESENT" = "false" ]; then
+                  VERDICT="already retired"
+                else
+                  VERDICT="open — keep carrying"
+                fi
+                ;;
+              release)
+                ST="$(merged_state "$REPO" "$NUM")"
+                IN_PINNED="$(contains_fix "$PINNED")"
+                LINK="[${REPO}#${NUM}](https://github.com/tailscale/${REPO}/pull/${NUM})"
+                if [ "$IN_PINNED" = "UNKNOWN" ]; then
+                  VERDICT=":warning: could not read tagged source"; UNRESOLVED=$((UNRESOLVED+1))
+                elif [ "$IN_PINNED" = "yes" ] && [ "$PRESENT" = "true" ]; then
+                  VERDICT=":warning: **in \`$PINNED\` — delete the patch step, do not rebase it**"; ACTIONABLE=$((ACTIONABLE+1))
+                elif [ "$PRESENT" = "false" ]; then
+                  VERDICT="already retired"
+                else
+                  VERDICT="$ST upstream, absent from \`$PINNED\` — keep carrying"
+                fi
+                ;;
+              manual)
+                LINK="—"; ST="n/a"
+                VERDICT="not upstream-gated; retirement is a human decision"
+                ;;
+            esac
+            ROWS="${ROWS}| \`${FILE}\` | ${LINK} | ${VERDICT} |"$'\n'
+            echo "  $FILE ($KIND): present=$PRESENT -> $VERDICT"
+          done <<< "$PATCH_ROWS"
+
+          # A carried patch with no row would be invisible here. Fail loudly.
+          for f in tailscale/patches/*.patch; do
+            [ -e "$f" ] || continue
+            b="$(basename "$f")"
+            case "$PATCH_ROWS" in
+              *"$b"*) ;;
+              *)
+                echo "::error::$b is carried but has no row in PATCH_ROWS. Add one, or it retires only when somebody remembers."
+                exit 1
+                ;;
+            esac
+          done
+
+          {
+            echo "patch_rows<<ROWS_EOF"
+            printf '%s' "$ROWS"
+            echo "ROWS_EOF"
+          } >> "$GITHUB_OUTPUT"
+          echo "actionable=$ACTIONABLE" >> "$GITHUB_OUTPUT"
+          echo "unresolved=$UNRESOLVED" >> "$GITHUB_OUTPUT"
 
       - name: open, update, or close the tracking issue
         env:
@@ -130,10 +212,9 @@ jobs:
           PINNED: ${{ steps.state.outputs.pinned }}
           LATEST: ${{ steps.state.outputs.latest }}
           STALE: ${{ steps.state.outputs.stale }}
-          P20985: ${{ steps.state.outputs.p20985 }}
-          PATCH_PRESENT: ${{ steps.state.outputs.patch_present }}
-          FIX_PINNED: ${{ steps.state.outputs.fix_pinned }}
-          FIX_LATEST: ${{ steps.state.outputs.fix_latest }}
+          PATCH_ROWS_MD: ${{ steps.state.outputs.patch_rows }}
+          ACTIONABLE: ${{ steps.state.outputs.actionable }}
+          UNRESOLVED: ${{ steps.state.outputs.unresolved }}
           TITLE: "Upstream watch: Tailscale version + carried patches"
         run: |
           set -euo pipefail
@@ -158,27 +239,22 @@ jobs:
           fi
 
           BODY="$BODY""## Carried patches"$'\n\n'
-          BODY="$BODY""\`tailscale/build-tailscalekit.sh\` patches [tailscale#20985](https://github.com/tailscale/tailscale/pull/20985) into the Go module cache and hard-fails if it stops applying."$'\n\n'
-          BODY="$BODY""- upstream state of #20985: **$P20985**"$'\n'
-          BODY="$BODY""- patch still present in the build script: **$PATCH_PRESENT**"$'\n\n'
+          BODY="$BODY""One row per patch in \`tailscale/patches/\`, plus the module-cache step in \`build-tailscalekit.sh\`. A carried patch with no row fails this workflow rather than going unwatched."$'\n\n'
+          BODY="$BODY"'| patch | retires when | status |'$'\n''| --- | --- | --- |'$'\n'
+          BODY="$BODY""$PATCH_ROWS_MD"$'\n'
 
-          if [ "$P20985" = "MERGED" ] && [ "$PATCH_PRESENT" = "true" ]; then
-            BODY="$BODY""Read from the tagged \`tsnet/tsnet.go\`, not from release dates:"$'\n\n'
-            BODY="$BODY""- pinned \`$PINNED\` contains the fix: **$FIX_PINNED**"$'\n'
-            BODY="$BODY""- latest stable \`$LATEST\` contains the fix: **$FIX_LATEST**"$'\n\n'
+          if [ "${ACTIONABLE:-0}" -gt 0 ]; then
+            NEEDS_ATTENTION=true
+            BODY="$BODY"":warning: **${ACTIONABLE} patch(es) can be retired now.** Delete the file (or the module-cache step) and drop its note from \`TAILSCALE.md\`. **Delete, do not rebase** — upstream merged the same shape these patch in, so a rebase would reapply something already present."$'\n\n'
+          fi
 
-            if [ "$FIX_PINNED" = "UNKNOWN" ] || [ "$FIX_LATEST" = "UNKNOWN" ]; then
-              NEEDS_ATTENTION=true
-              BODY="$BODY"":warning: Could not read the tagged source, so containment is unverified. This is reported rather than assumed — treating a fetch failure as \"not contained\" is how a patch step quietly outlives its purpose."$'\n\n'
-            elif [ "$FIX_PINNED" = "yes" ]; then
-              NEEDS_ATTENTION=true
-              BODY="$BODY"":warning: **Actionable now.** The pinned version already contains the fix, so the patch step is dead code. Delete it from \`build-tailscalekit.sh\` and drop the note from \`TAILSCALE.md\`. Delete it — do not rebase it; upstream merged the same shape the script patches in."$'\n\n'
-            elif [ "$FIX_LATEST" = "yes" ]; then
-              NEEDS_ATTENTION=true
-              BODY="$BODY"":warning: **A bump would retire this patch.** \`$LATEST\` contains the fix and the pinned \`$PINNED\` does not. Bump first, then delete the patch step."$'\n\n'
-            else
-              BODY="$BODY"":information_source: Merged upstream but not in any release yet, so there is nothing to do. The patch stays until a release carries it."$'\n\n'
-            fi
+          if [ "${UNRESOLVED:-0}" -gt 0 ]; then
+            NEEDS_ATTENTION=true
+            BODY="$BODY"":warning: **${UNRESOLVED} probe(s) could not be resolved.** Reported rather than assumed: treating a failed probe as \"still needed\" is how a patch quietly outlives its purpose, and treating it as \"retirable\" would delete a patch that is still load-bearing."$'\n\n'
+          fi
+
+          if [ "${ACTIONABLE:-0}" -eq 0 ] && [ "${UNRESOLVED:-0}" -eq 0 ]; then
+            BODY="$BODY"":information_source: Nothing retirable. Every carried patch is still waiting on an upstream event, or is a human decision."$'\n\n'
           fi
 
           EXISTING="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
