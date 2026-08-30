@@ -32,11 +32,25 @@ echo "manifest URL   : $URL"
 echo "manifest sum   : $SUM"
 
 # 1. URL must name the release for the pinned version.
+# An optional `+N` build suffix is allowed: the artifact can change while the
+# tsnet version does not (a patch added or removed, or the deployment floors
+# moved), and republishing under a new tag is what keeps an already-published
+# asset from being rewritten underneath consumers pinned to its checksum.
+#
+# What must NOT be allowed through is a URL naming a different tsnet version —
+# that is this check's entire purpose, and the suffix must not weaken it. Hence
+# an anchored match on the version segment rather than a loose substring.
 case "$URL" in
-  *"/download/${TAG}/"*) echo "OK: URL matches $TAG" ;;
+  *"/download/${TAG}/"*)
+    echo "OK: URL matches $TAG"
+    ;;
+  *"/download/${TAG}+"*)
+    BUILT_TAG="$(printf '%s' "$URL" | grep -oE "/download/${TAG}\+[0-9]+/" | tr -d '/' | sed 's|^download||')"
+    echo "OK: URL matches ${BUILT_TAG:-${TAG}+N} (same tsnet version, rebuilt artifact)"
+    ;;
   *)
     echo "ERROR: Package.swift points at a different release than tailscale/TAILSCALE_VERSION"
-    echo "       expected a URL containing /download/${TAG}/"
+    echo "       expected a URL containing /download/${TAG}/ or /download/${TAG}+N/"
     echo "       SwiftPM consumers would resolve the wrong tsnet version."
     exit 1
     ;;
