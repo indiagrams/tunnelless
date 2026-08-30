@@ -42,6 +42,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The App Store privacy URL now points at `https://indiagram.com/privacy.html`** rather than `https://github.com/indiagrams/tunnelless/blob/main/PRIVACY.md`. Pre-emptive: Apple rejected the *support* URL under Guideline 1.5 for being a GitHub page rather than a website, and the privacy URL was the same shape on the same listing. It was not flagged, and this changes it before it is.
+
+  Sequenced deliberately, because repointing alone would have made things worse. `indiagram.com/privacy.html` described only PrivateClaw — API keys, prompts and AI conversation data on a VPS, none of which this app does — so the site page was extended to cover Tunnelless first (`indiagrams/indiagram-site#3`), mirroring this repo's `PRIVACY.md`: collects nothing, tsnet state confined to the app container and deleted on sign-out, sign-in on Tailscale's own site, connected traffic governed by Tailscale's policy, SOCKS5 traffic never proxied or logged by us. An accurate policy awkwardly hosted beats a well-hosted policy about a different product.
+
+  `PRIVACY.md` remains the canonical text and now carries a pointer to the published page, with an explicit instruction to change both together — two copies of a privacy policy is a drift risk worth naming.
+
+  Reaches the App Store with the next `deliver` upload; the build-7 submissions already in review carry the previous URL.
+
 - **Deployment floors are now iOS 17.0 / macOS 14.0**, down from 18.1 / 15.6.
   A new xcframework was published as `tailscalekit-v1.102.3+2` — same tsnet
   version, rebuilt with patch `0003` — and verified from the downloaded asset:
