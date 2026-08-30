@@ -37,24 +37,24 @@ final class WebAuthLoginStateTests: XCTestCase {
     /// SWIFT TASK CONTINUATION MISUSE. That is the correct signal — the same
     /// crash would take the app down mid-login.
     func testSecondResumeIsANoOp() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
-            state.resumeOnce(true)
-            state.resumeOnce(false) // must not resume again
-            state.resumeOnce(true) // nor a third time
+            state.resumeOnce(.completed)
+            state.resumeOnce(.cancelled) // must not resume again
+            state.resumeOnce(.completed) // nor a third time
         }
-        XCTAssertTrue(result, "the FIRST resume must win; later ones are dropped")
+        XCTAssertEqual(result, .completed, "the FIRST resume must win; later ones are dropped")
     }
 
     /// The first value is the one delivered, whichever it is — the guard is not
     /// "always true", it is "whatever arrived first".
-    func testFirstResumeWinsWhenItIsFalse() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+    func testFirstResumeWinsWhenItIsNotCompleted() async {
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
-            state.resumeOnce(false)
-            state.resumeOnce(true)
+            state.resumeOnce(.cancelled)
+            state.resumeOnce(.completed)
         }
-        XCTAssertFalse(result)
+        XCTAssertEqual(result, .cancelled)
     }
 
     // MARK: - finish(userCancelled:)
@@ -62,20 +62,20 @@ final class WebAuthLoginStateTests: XCTestCase {
     /// The user tapped Cancel and we had not dismissed the sheet ourselves, so
     /// login did not happen: report false.
     func testUserCancellationReportsFailure() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
             state.finish(userCancelled: true)
         }
-        XCTAssertFalse(result)
+        XCTAssertEqual(result, .cancelled)
     }
 
     /// The session completed on its own without a cancellation: login succeeded.
     func testNaturalCompletionReportsSuccess() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
             state.finish(userCancelled: false)
         }
-        XCTAssertTrue(result)
+        XCTAssertEqual(result, .completed)
     }
 
     /// The case the whole `autoDismissed` flag exists for, and the one most likely
@@ -84,23 +84,45 @@ final class WebAuthLoginStateTests: XCTestCase {
     /// view a cancel is a cancel. Without the flag this would report false and the
     /// app would stay on the login screen after a login that succeeded.
     func testSelfDismissalOnSuccessIsNotMistakenForUserCancellation() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
             state.autoDismissed = true
             state.finish(userCancelled: true) // arrives looking exactly like a cancel
         }
-        XCTAssertTrue(result, "autoDismissed must outrank the cancellation flag")
+        XCTAssertEqual(result, .completed, "autoDismissed must outrank the cancellation flag")
     }
 
     /// `autoDismissed` wins regardless of what the completion handler reports, so
     /// the success path does not depend on the system's cancellation bookkeeping.
     func testSelfDismissalReportsSuccessWhenNotFlaggedCancelled() async {
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
             state.autoDismissed = true
             state.finish(userCancelled: false)
         }
-        XCTAssertTrue(result)
+        XCTAssertEqual(result, .completed)
+    }
+
+    // MARK: - The third outcome
+
+    /// `failedToPresent` exists because `Bool` could not say "the sheet never
+    /// opened" — it only had "completed" and "cancelled", so a presentation
+    /// failure had to masquerade as one of them or, as it actually did, resume
+    /// nothing at all. It must survive `resumeOnce` with its reason intact, since
+    /// the reason is what the UI shows instead of waiting forever.
+    func testFailureToPresentIsAnOutcomeAndCarriesItsReason() async {
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
+            let state = WebAuthLogin.LoginState(cont)
+            state.resumeOnce(.failedToPresent(reason: "no window"))
+        }
+        XCTAssertEqual(result, .failedToPresent(reason: "no window"))
+    }
+
+    /// A presentation failure is distinct from a cancellation. Collapsing them
+    /// would tell the user they backed out of a sheet they never saw.
+    func testFailureToPresentIsNotCancellation() {
+        XCTAssertNotEqual(WebAuthLogin.Outcome.failedToPresent(reason: "x"), .cancelled)
+        XCTAssertNotEqual(WebAuthLogin.Outcome.failedToPresent(reason: "x"), .completed)
     }
 
     // MARK: - The watcher
@@ -109,7 +131,7 @@ final class WebAuthLoginStateTests: XCTestCase {
     /// resume after the completion handler already settled things.
     func testFinishCancelsTheWatcher() async {
         var watcher: Task<Void, Never>?
-        let result = await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        let result = await withCheckedContinuation { (cont: CheckedContinuation<WebAuthLogin.Outcome, Never>) in
             let state = WebAuthLogin.LoginState(cont)
             let t = Task { @MainActor in
                 // Long enough that it is still pending when finish() runs.
@@ -121,7 +143,7 @@ final class WebAuthLoginStateTests: XCTestCase {
             watcher = t
             state.finish(userCancelled: false)
         }
-        XCTAssertTrue(result)
+        XCTAssertEqual(result, .completed)
         await watcher?.value
         XCTAssertTrue(watcher?.isCancelled == true, "finish() must cancel the watcher")
     }
