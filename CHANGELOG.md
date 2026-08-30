@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Deployment floors are now iOS 17.0 / macOS 14.0**, down from 18.1 / 15.6.
+  A new xcframework was published as `tailscalekit-v1.102.3+2` — same tsnet
+  version, rebuilt with patch `0003` — and verified from the downloaded asset:
+  `minos 17.0` (ios-arm64, and the simulator slice) and `14.0` (macos-arm64).
+  `Package.swift`'s URL, checksum and platform floors moved together;
+  `app/project.yml` and `app/Project.swift` follow.
+
+  Reaches users with the next app build. The declarations changing does not
+  alter the `0.1.0` binaries currently in App Review.
+
 ### Removed
 
 - **Module-cache Patch 1 (darwin `os.Executable` fallback) is gone.** It merged
