@@ -98,7 +98,7 @@ jobs:
           #
           # fields: file|kind|repo|number
           PATCH_ROWS="
-          0002-up-off-actor.patch|merge|libtailscale|58
+          0002-up-off-actor.patch|merge|tailscale|19052
           0003-gate-listener-api.patch|merge|libtailscale|60
           0001-tailscalekit-nslog-tracing.patch|manual||
           @module-cache-bus-guard|release|tailscale|20985
