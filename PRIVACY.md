@@ -1,7 +1,14 @@
 # Privacy Policy — Tunnelless
 
-**Last updated:** 26 August 2026
+**Last updated:** 30 August 2026
 **Provider:** Indiagram LLC
+
+> **Also published at <https://indiagram.com/privacy.html>**, which is the URL
+> the App Store listing points at. That page is the one users and App Review
+> see, so the two must say the same thing — if you change this file, change that
+> page in the same breath. The App Store URL moved here from a GitHub blob after
+> Apple rejected the *support* URL for being a GitHub page (Guideline 1.5, macOS
+> build 5); the privacy URL was the same shape and was changed pre-emptively.
 
 ## Summary
 
