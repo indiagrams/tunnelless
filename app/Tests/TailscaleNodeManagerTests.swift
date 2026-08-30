@@ -91,6 +91,7 @@ final class TailscaleNodeManagerTests: XCTestCase {
     }
 
     // MARK: - State equality
+
     //
     // `TailscaleNodeState.==` is hand-written with a `default: false` arm, which
     // is exactly the shape that silently starts returning false for a case
@@ -118,6 +119,7 @@ final class TailscaleNodeManagerTests: XCTestCase {
     }
 
     // MARK: - stateDirPath()
+
     //
     // Sign-out MUST delete this directory: leaving it means tsnet reuses the
     // persisted auth, never re-logs the auth URL, and the next login waits
