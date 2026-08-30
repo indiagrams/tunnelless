@@ -150,6 +150,17 @@ not surface in XCUITest queries.
   on every user-visible change.
 - **PR descriptions**: what changed, why, validation. Tables beat prose.
 - **Merges**: squash.
+- **No assistant session links.** Do not write `Claude-Session:` trailers, or a
+  `Generated with Claude Code` footer carrying a `https://claude.ai/code/session_…`
+  URL, into commit messages, PR bodies, issue comments or review replies. Some
+  assistants append these by default; strip them. `Co-Authored-By:` is fine —
+  that is attribution, not a session identifier.
+
+  This applies to private repositories too. A repo that is private today can be
+  made public later, and the history goes with it, so "it is private" is not a
+  reason to commit something you would not publish. It matters most on repos this
+  project does not own: a session id was posted to a `tailscale/*` PR before this
+  rule existed.
 
 ## Relationship to apple-shipkit
 
