@@ -121,8 +121,12 @@ enum WebAuthLogin {
     /// Exists so the session's completion handler can be `@Sendable`: that closure
     /// cannot capture mutable local `var`s, but a `@MainActor` class is implicitly
     /// `Sendable`, so it can capture one of these and reach the state through a hop.
+    /// Internal rather than private so `WebAuthLoginStateTests` can reach it. The
+    /// resume-exactly-once rule below is enforced by a runtime trap, not the type
+    /// system: a second resume kills the process with SWIFT TASK CONTINUATION
+    /// MISUSE. That is worth a test, and the test needs to see the type.
     @MainActor
-    private final class LoginState {
+    final class LoginState {
         /// Set before we cancel the session ourselves, so the completion handler can
         /// tell "we dismissed it because login succeeded" from "the user tapped Cancel".
         var autoDismissed = false
