@@ -343,6 +343,47 @@ Also worth knowing: `MACOS_TARGET=14.0 make c-archive` silently does nothing.
 It must be `make MACOS_TARGET=14.0 c-archive` — an environment variable does not
 override a makefile assignment, and the build reports success either way.
 
+### Verifying a floor, as opposed to declaring one
+
+`ci/check-platform-floors.sh` compares each declared floor against the `minos`
+the slice reports. Run it on every PR — but note what it does not do: it never
+loads anything, and every machine that builds this repo runs an OS above every
+floor it declares. The failure a floor exists to prevent is invisible to it and
+to every other green check.
+
+`tailscale/verify-floor-runtime.sh` closes that for iOS by making dyld load the
+framework on an OS below the *previous* floor:
+
+    bash tailscale/verify-floor-runtime.sh
+
+It builds the app for the simulator, then runs two launches — a **negative
+control** carrying the pre-lowering framework from an earlier
+`tailscalekit-*` release, and the current one. dyld must refuse the control and
+accept the subject. If the control *loads*, the run is reported INCONCLUSIVE
+and the subject's pass is discarded, because a check that cannot fail is not
+evidence.
+
+It is picky about the runtime on purpose. A simulator above the old floor
+clears the old and new floors alike, so it cannot distinguish "the floor was
+lowered" from "the floor was never lowered" — which is exactly the mistake that
+made an iOS 18.6 launch look like proof of a 17.0 floor. The script computes the
+interval `[declared floor, control floor)` and refuses to run outside it. Get a
+runtime with:
+
+    xcodebuild -downloadPlatform iOS -buildVersion 17.5   # ~7.3 GB
+
+Not wired into CI: GitHub's macOS images do not carry old simulator runtimes,
+and this is a release-time check rather than a per-PR one. Run it whenever a
+floor moves or the xcframework is republished.
+
+**Verified 2026-08-30** at `tailscalekit-v1.102.3+2`: on iOS 17.5, the app maps
+`TailscaleKit` and runs, while the same app carrying the `tailscalekit-v1.102.3`
+framework is refused — `built for iOS-sim 18.1 which is newer than running OS`.
+
+**macOS is still structural only.** There is no macOS simulator, so proving the
+14.0 floor needs a real machine or VM running macOS 14–15.5. Nothing about the
+macOS floor has been loaded on an OS that could disprove it.
+
 ## macOS: the App Sandbox needs `network.server`
 
 A sandboxed macOS build fails to start tsnet at all unless

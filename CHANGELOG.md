@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`tailscale/verify-floor-runtime.sh` — proves a declared iOS floor by loading
+  it.** `ci/check-platform-floors.sh` compares declared floors against the
+  `minos` a slice reports, but never loads anything, and every machine that
+  builds this repo runs an OS above every floor it declares — so the failure a
+  floor exists to prevent was invisible to every green check.
+
+  The script builds the app for the simulator and launches it twice: once
+  carrying the pre-lowering framework from an earlier `tailscalekit-*` release
+  (the negative control, which dyld must refuse) and once carrying the current
+  one. If the control *loads*, the run reports INCONCLUSIVE and discards the
+  subject's pass rather than reporting it.
+
+  It refuses to run on a simulator at or above the old floor, because such a
+  runtime clears the old and new floors alike and cannot tell a lowered floor
+  from an unlowered one. Needs a runtime in `[declared floor, previous floor)`;
+  not wired into CI, as GitHub's macOS images carry no old runtimes.
+
+  First run on iOS 17.5 confirms the lowered floor: the app maps `TailscaleKit`
+  and runs, while the same app carrying the `tailscalekit-v1.102.3` framework
+  dies with `built for iOS-sim 18.1 which is newer than running OS`. **The macOS
+  14.0 floor remains structural only** — there is no macOS simulator, so it
+  needs a machine or VM on macOS 14–15.5.
+
 ### Changed
 
 - **Deployment floors are now iOS 17.0 / macOS 14.0**, down from 18.1 / 15.6.
