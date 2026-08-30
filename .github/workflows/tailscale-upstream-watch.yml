@@ -98,7 +98,7 @@ jobs:
           #
           # fields: file|kind|repo|number
           PATCH_ROWS="
-          0002-up-off-actor.patch|merge|tailscale|19052
+          0002-up-off-actor.patch|merge|libtailscale|58
           0003-gate-listener-api.patch|merge|libtailscale|60
           0001-tailscalekit-nslog-tracing.patch|manual||
           @module-cache-bus-guard|release|tailscale|20985
@@ -245,7 +245,7 @@ jobs:
 
           if [ "${ACTIONABLE:-0}" -gt 0 ]; then
             NEEDS_ATTENTION=true
-            BODY="$BODY"":warning: **${ACTIONABLE} patch(es) can be retired now.** Delete the file (or the module-cache step) and drop its note from \`TAILSCALE.md\`. **Delete, do not rebase** — upstream merged the same shape these patch in, so a rebase would reapply something already present."$'\n\n'
+            BODY="$BODY"":warning: **${ACTIONABLE} patch(es) can be retired now.** Delete the file (or the module-cache step) and drop its note from \`TAILSCALE.md\`. **Delete, do not rebase** — upstream merged the same shape the patch applies, so rebasing would reapply what is already there."$'\n\n'
           fi
 
           if [ "${UNRESOLVED:-0}" -gt 0 ]; then
