@@ -16,6 +16,41 @@
 import Foundation
 import TailscaleKit
 
+/// A `host:port[/path]` launch-argument target, parsed once so `-probe` and
+/// `-service` cannot drift apart.
+///
+/// WHY THIS IS A TYPE and not two inline `guard let`s: it was the latter, in two
+/// places, with `-service` a strict superset of `-probe`. Duplicated parsing that
+/// only runs behind a launch argument on a physical device is duplicated parsing
+/// nobody notices going wrong.
+///
+/// The colon search is `lastIndex`, deliberately: an IPv6 literal like
+/// `[::1]:8080` is full of colons and only the last one separates the port.
+/// `firstIndex` would split inside the address and parse a nonsense port.
+/// The slash search is `firstIndex`, equally deliberately: the path begins at the
+/// FIRST slash, and any later slashes belong to the path itself.
+struct ProbeTarget: Equatable {
+    let host: String
+    let port: UInt16
+    /// `/` when the target carried no path.
+    let path: String
+
+    /// Returns nil when the target has no colon, or a port that is not a number in
+    /// `0...65535`. `UInt16.init` is what rejects an out-of-range port — a bare
+    /// `Int` conversion would accept 70000 and silently truncate it.
+    static func parse(_ target: String) -> ProbeTarget? {
+        let slash = target.firstIndex(of: "/")
+        let authority = slash.map { String(target[..<$0]) } ?? target
+        let path = slash.map { String(target[$0...]) } ?? "/"
+        guard let colon = authority.lastIndex(of: ":"),
+              let port = UInt16(authority[authority.index(after: colon)...])
+        else {
+            return nil
+        }
+        return ProbeTarget(host: String(authority[..<colon]), port: port, path: path)
+    }
+}
+
 @MainActor
 extension DemoModel {
     /// Launch with `-probe <host:port>` to GET `http://<host:port>/` through the node's
@@ -34,13 +69,12 @@ extension DemoModel {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-probe"), i + 1 < args.count else { return }
         let target = args[i + 1]
-        guard let colon = target.lastIndex(of: ":"),
-              let port = UInt16(target[target.index(after: colon)...])
-        else {
+        guard let parsed = ProbeTarget.parse(target) else {
             probeResult("bad -probe target '\(target)'; expected host:port")
             return
         }
-        let host = String(target[..<colon])
+        let host = parsed.host
+        let port = parsed.port
 
         guard let lb = await manager.cachedLoopback,
               let client = SOCKS5Client(loopbackAddress: lb.address, credential: lb.proxyCredential)
@@ -208,16 +242,13 @@ extension DemoModel {
         // Accepts host:port or host:port/path, so both renderer branches can be
         // exercised against real endpoints rather than only in unit tests.
         let target = args[i + 1]
-        let slash = target.firstIndex(of: "/")
-        let authority = slash.map { String(target[..<$0]) } ?? target
-        let path = slash.map { String(target[$0...]) } ?? "/"
-        guard let colon = authority.lastIndex(of: ":"),
-              let port = UInt16(authority[authority.index(after: colon)...])
-        else {
+        guard let parsed = ProbeTarget.parse(target) else {
             probeResult("service: bad target '\(target)'")
             return
         }
-        let host = String(authority[..<colon])
+        let host = parsed.host
+        let port = parsed.port
+        let path = parsed.path
         guard let lb = await manager.cachedLoopback,
               let client = SOCKS5Client(loopbackAddress: lb.address, credential: lb.proxyCredential)
         else {
