@@ -256,8 +256,14 @@ the measurements, and four more traps in [TAILSCALE.md](TAILSCALE.md).
 ## Upstream
 
 Work found here that has gone upstream. States verified against GitHub on
-2026-08-30; where a fix has merged, whether it has *shipped* is stated
-separately, because those are not the same question.
+2026-08-31; where a fix has merged, whether it has *shipped* — or even reached
+this repo's pinned submodule — is stated separately, because those are not the
+same question.
+
+**Three landed on 2026-08-31: #58, #60 and #61.** They are on `libtailscale`
+`main` but *ahead of* the commit `vendor/libtailscale` pins (`5e89501`), so this
+repo still carries `0002` and `0003` until the submodule is bumped. Merged is
+not the same as in your build.
 
 - [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
   `os.Executable` fallback. **Merged 2026-03-21, shipped in v1.98.0.** Present
@@ -279,27 +285,28 @@ separately, because those are not the same question.
   and you can take the xcframework straight from upstream.
 - [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) — runs the
   blocking `tailscale_up` off the actor, so `LocalAPIClient` stops awaiting an
-  actor that `up()` holds for the entire login. **Open, review changes addressed
-  2026-08-29**
-  ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
-  Until it lands this repo carries it as
-  `tailscale/patches/0002-up-off-actor.patch`. If it lands, delete that patch
-  rather than rebasing it.
+  actor that `up()` holds for the entire login. **Merged 2026-08-31** as
+  `61e8513` ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
+  Not yet in this repo's build: the pinned submodule predates it, so
+  `tailscale/patches/0002-up-off-actor.patch` is still applied. **When the
+  submodule is bumped past `61e8513`, delete that patch — do not rebase it.**
 - [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) — gates
   the listener API behind `@available`, so a consumer that never accepts an
   inbound connection is not forced to iOS 18 / macOS 15 by an API it does not
   call. `Listener.state()` returns `any AsyncSequence<ListenerState, Never>`,
   whose `Failure` associated type is iOS 18 / macOS 15 only, and the unannotated
-  requirement propagates to the whole framework. **Open**
+  requirement propagates to the whole framework.
+  **Merged 2026-08-31** as `8564835`
   ([tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)).
   Measured by building at each floor: gating moves it to **iOS 17 / macOS 14**,
   where the next constraint is `ProxyConfiguration`. Since verified at
   *runtime*, not just compiled: on an iOS 17.5 simulator the app loads a
   framework built with this diff, while the pre-gating build is refused by dyld
   (`built for iOS-sim 18.1 which is newer than running OS`). Reproduce with
-  `tailscale/verify-floor-runtime.sh`. Carried meanwhile as
-  `tailscale/patches/0003-gate-listener-api.patch`; if it lands, delete that
-  patch rather than rebasing it.
+  `tailscale/verify-floor-runtime.sh`. Still carried as
+  `tailscale/patches/0003-gate-listener-api.patch` because the pinned submodule
+  predates the merge. **When the submodule is bumped past `8564835`, delete that
+  patch — do not rebase it.**
 - [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) — a
   universal (arm64 + x86_64) macOS slice; upstream's Swift `Makefile` builds
   macOS arm64-only. **Open, no review yet.** It is what a *universal* macOS
@@ -309,7 +316,7 @@ separately, because those are not the same question.
 - [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61) — lets
   the environment override `MACOS_TARGET`. The Makefile uses `:=`, so
   `MACOS_TARGET=14.0 make c-archive` silently builds 15.0 and exits 0; only
-  `make MACOS_TARGET=14.0 c-archive` works. **Open**, filed 2026-08-30
+  `make MACOS_TARGET=14.0 c-archive` works. **Merged 2026-08-31** as `59d4bb8`
   ([tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)).
   This repo is not affected — `build-tailscalekit.sh` already passes it on the
   command line — but it is a trap for anyone lowering the macOS floor, which is

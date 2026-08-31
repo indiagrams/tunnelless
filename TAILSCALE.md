@@ -248,10 +248,10 @@ Everything this project has filed upstream, newest first.
 
 | Upstream | What | Status |
 | --- | --- | --- |
-| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | Runs `tailscale_up` off the actor so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Open**, changes requested and addressed |
+| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | Runs `tailscale_up` off the actor so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Merged 2026-08-31** (`61e8513`) — ahead of the pinned submodule, so `0002-up-off-actor.patch` is still applied; **delete it when the pin moves past that commit, do not rebase** |
 | [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) | Universal (arm64 + x86_64) macOS slice — without it a universal macOS release cannot link | **Open**, no review yet |
-| [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) | Gates the listener API behind `@available`, so a client-only consumer is not forced to iOS 18 / macOS 15 by an API it never calls | **Open** ([tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)) — carried meanwhile as `0003-gate-listener-api.patch`; **delete that patch when this lands, do not rebase** |
-| [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61) | `MACOS_TARGET := 15.0` cannot be overridden from the environment, so `MACOS_TARGET=14.0 make c-archive` silently builds 15.0 and exits 0 | **Open** ([tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)) — this repo passes it on the command line and is unaffected; nothing to carry |
+| [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) | Gates the listener API behind `@available`, so a client-only consumer is not forced to iOS 18 / macOS 15 by an API it never calls | **Merged 2026-08-31** (`8564835`, [tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)) — ahead of the pinned submodule, so `0003-gate-listener-api.patch` is still applied; **delete it when the pin moves past that commit, do not rebase** |
+| [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61) | `MACOS_TARGET := 15.0` cannot be overridden from the environment, so `MACOS_TARGET=14.0 make c-archive` silently builds 15.0 and exits 0 | **Merged 2026-08-31** (`59d4bb8`, [tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)) — this repo passes it on the command line and never carried a patch |
 | [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) | `TailscaleNode.down()` calls `tailscale_up()`; on a node never brought up it starts it. No `tailscale_down` exists | **Open** |
 | [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
 | [libtailscale#57](https://github.com/tailscale/libtailscale/pull/57) | Makes the built xcframework distributable: privacy manifests (ITMS-91053), a macOS slice, a validator for upload-only failures | **Open** |
@@ -344,12 +344,12 @@ Also worth knowing: `MACOS_TARGET=14.0 make c-archive` silently does nothing.
 It must be `make MACOS_TARGET=14.0 c-archive` — an environment variable does not
 override a makefile assignment, and the build reports success either way.
 `build-tailscalekit.sh` already passes it on the command line, so this repo is
-unaffected; the trap is for anyone else lowering the floor. Fix proposed
-upstream as
+unaffected; the trap was for anyone else lowering the floor. Fixed upstream as
 [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61)
 ([tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)):
 `MACOS_TARGET ?= 15.0`, which leaves the command-line override and the default
-untouched. If it lands, this paragraph becomes history rather than advice.
+untouched. **Merged 2026-08-31 (`59d4bb8`)** — so once the submodule is bumped
+past it, the paragraph above is history rather than advice.
 
 ### Verifying a floor, as opposed to declaring one
 
