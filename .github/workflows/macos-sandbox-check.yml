@@ -70,12 +70,33 @@ jobs:
           TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/tunnelless' }}
         run: |
           set -euo pipefail
+          # Resolve the tag from Package.swift, NOT from TAILSCALE_VERSION.
+          # They agree only while an artifact is uniquely determined by the tsnet
+          # version, and that stopped being true the moment a `+N` build suffix
+          # existed: TAILSCALE_VERSION still says v1.102.3 while consumers
+          # resolve v1.102.3+3. Deriving it here from the version file made this
+          # job guard the PRE-LOWERING framework — a different binary from the
+          # one that ships. pr.yml was fixed the same way in #53; this workflow
+          # was missed because it is fork-owned and lives in its own file.
           TSNET_VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
           if [ -z "$TSNET_VERSION" ]; then
             echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
             exit 1
           fi
-          gh release download "tailscalekit-${TSNET_VERSION}" \
+          TAG="$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift | head -1 | sed 's|download/||; s|/$||')"
+          if [ -z "$TAG" ]; then
+            echo "::error::could not resolve the TailscaleKit tag from Package.swift"
+            exit 1
+          fi
+          # Still cross-check against TAILSCALE_VERSION, so a Package.swift
+          # pointing at a different tsnet version fails loudly rather than
+          # silently testing the wrong thing.
+          case "$TAG" in
+            "tailscalekit-${TSNET_VERSION}"|"tailscalekit-${TSNET_VERSION}+"*) ;;
+            *) echo "::error::Package.swift tag $TAG does not match TAILSCALE_VERSION $TSNET_VERSION"; exit 1 ;;
+          esac
+          echo "Fetching $TAG (resolved from Package.swift)"
+          gh release download "$TAG" \
             --repo "$TSKIT_REPO" \
             --pattern 'TailscaleKit.xcframework.zip' \
             --dir "$RUNNER_TEMP"
