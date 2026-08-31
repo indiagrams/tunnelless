@@ -15,8 +15,10 @@ options:
     # objects; at most one `ld: warning`.
     #
     # As of tailscalekit-v1.102.3+2 the slices are minos 17.0 (ios-arm64,
-    # ios-arm64_x86_64-simulator) and 14.0 (macos-arm64), lowered by patch
-    # `0003-gate-listener-api.patch`. They were 18.1 / 15.6 before that.
+    # ios-arm64_x86_64-simulator) and 14.0 (macos-arm64). They were 18.1 / 15.6
+    # before that. The gating that makes the lower floor possible was carried
+    # here as `0003-gate-listener-api.patch` until 2026-08-31; it is now
+    # upstream (libtailscale#60, `8564835`) and the patch has been deleted.
     #
     # Move these only in step with a published slice, and in all three
     # declaration sites together — here, app/Project.swift and Package.swift.
