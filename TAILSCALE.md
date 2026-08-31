@@ -132,7 +132,8 @@ basic auth with `local_api_cred`.
 runs the blocking `tailscale_up` off the actor —
 `await Task.detached { tailscale_up(tailscale) }.value` — so `up()` suspends and
 releases the actor instead of holding it for the whole login. Carried locally as
-`tailscale/patches/0002-up-off-actor.patch` until it lands.
+`tailscale/patches/0002-up-off-actor.patch` until it landed; merged
+2026-08-31 (`61e8513`) and the patch is deleted.
 
 An earlier revision of #58 instead added a `nonisolated resolvedLoopback()` so
 the memoized value could be read without actor entry. The maintainer proposed
@@ -248,9 +249,9 @@ Everything this project has filed upstream, newest first.
 
 | Upstream | What | Status |
 | --- | --- | --- |
-| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | Runs `tailscale_up` off the actor so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Merged 2026-08-31** (`61e8513`) — ahead of the pinned submodule, so `0002-up-off-actor.patch` is still applied; **delete it when the pin moves past that commit, do not rebase** |
+| [libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) | Runs `tailscale_up` off the actor so `LocalAPIClient` stops awaiting an actor `up()` holds for the whole login | **Merged 2026-08-31** (`61e8513`). Submodule bumped past it the same day and `0002-up-off-actor.patch` **deleted, not rebased** |
 | [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) | Universal (arm64 + x86_64) macOS slice — without it a universal macOS release cannot link | **Open**, no review yet |
-| [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) | Gates the listener API behind `@available`, so a client-only consumer is not forced to iOS 18 / macOS 15 by an API it never calls | **Merged 2026-08-31** (`8564835`, [tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)) — ahead of the pinned submodule, so `0003-gate-listener-api.patch` is still applied; **delete it when the pin moves past that commit, do not rebase** |
+| [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) | Gates the listener API behind `@available`, so a client-only consumer is not forced to iOS 18 / macOS 15 by an API it never calls | **Merged 2026-08-31** (`8564835`, [tailscale#21036](https://github.com/tailscale/tailscale/issues/21036)). Submodule bumped past it the same day and `0003-gate-listener-api.patch` **deleted, not rebased** |
 | [libtailscale#61](https://github.com/tailscale/libtailscale/pull/61) | `MACOS_TARGET := 15.0` cannot be overridden from the environment, so `MACOS_TARGET=14.0 make c-archive` silently builds 15.0 and exits 0 | **Merged 2026-08-31** (`59d4bb8`, [tailscale#21044](https://github.com/tailscale/tailscale/issues/21044)) — this repo passes it on the command line and never carried a patch |
 | [tailscale#21005](https://github.com/tailscale/tailscale/issues/21005) | `TailscaleNode.down()` calls `tailscale_up()`; on a node never brought up it starts it. No `tailscale_down` exists | **Open** |
 | [tailscale#20997](https://github.com/tailscale/tailscale/issues/20997) | The issue #58 fixes: LocalAPIClient unusable during bring-up | **Open** |
@@ -259,7 +260,7 @@ Everything this project has filed upstream, newest first.
 | [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) | darwin `os.Executable` fallback | **Merged**, shipped in v1.98.0 — patch **removed** 2026-08-29; `build-tailscalekit.sh` now hard-fails if pinned below v1.98.0 rather than carrying it |
 
 If #57 lands, most of `build-tailscalekit.sh` becomes redundant. If #58 lands,
-`tailscale/patches/0002-up-off-actor.patch` can be dropped and status/peer data
+`tailscale/patches/0002-up-off-actor.patch` has been dropped and status/peer data
 becomes readable during login without a workaround. #59 is what keeps
 `PLATFORMS=ios`: the macOS slice is arm64-only, so a macOS release cannot link
 x86_64.

@@ -260,10 +260,11 @@ Work found here that has gone upstream. States verified against GitHub on
 this repo's pinned submodule — is stated separately, because those are not the
 same question.
 
-**Three landed on 2026-08-31: #58, #60 and #61.** They are on `libtailscale`
-`main` but *ahead of* the commit `vendor/libtailscale` pins (`5e89501`), so this
-repo still carries `0002` and `0003` until the submodule is bumped. Merged is
-not the same as in your build.
+**Three landed on 2026-08-31: #58, #60 and #61**, and the submodule was bumped
+past all three the same day (`5e89501` → `59d4bb8`). `0002` and `0003` are
+**deleted, not rebased** — upstream carries the same shape, so rebasing would
+reapply what is already there. **One patch remains**, `0001` (NSLog tracing),
+which is not upstream and was rebased onto the new tree.
 
 - [tailscale#19052](https://github.com/tailscale/tailscale/pull/19052) — darwin
   `os.Executable` fallback. **Merged 2026-03-21, shipped in v1.98.0.** Present
@@ -287,9 +288,8 @@ not the same as in your build.
   blocking `tailscale_up` off the actor, so `LocalAPIClient` stops awaiting an
   actor that `up()` holds for the entire login. **Merged 2026-08-31** as
   `61e8513` ([tailscale#20997](https://github.com/tailscale/tailscale/issues/20997)).
-  Not yet in this repo's build: the pinned submodule predates it, so
-  `tailscale/patches/0002-up-off-actor.patch` is still applied. **When the
-  submodule is bumped past `61e8513`, delete that patch — do not rebase it.**
+  Submodule bumped past it 2026-08-31 and
+  `tailscale/patches/0002-up-off-actor.patch` **deleted, not rebased**.
 - [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) — gates
   the listener API behind `@available`, so a consumer that never accepts an
   inbound connection is not forced to iOS 18 / macOS 15 by an API it does not
@@ -303,10 +303,9 @@ not the same as in your build.
   *runtime*, not just compiled: on an iOS 17.5 simulator the app loads a
   framework built with this diff, while the pre-gating build is refused by dyld
   (`built for iOS-sim 18.1 which is newer than running OS`). Reproduce with
-  `tailscale/verify-floor-runtime.sh`. Still carried as
-  `tailscale/patches/0003-gate-listener-api.patch` because the pinned submodule
-  predates the merge. **When the submodule is bumped past `8564835`, delete that
-  patch — do not rebase it.**
+  `tailscale/verify-floor-runtime.sh`. Submodule bumped past it 2026-08-31 and
+  `tailscale/patches/0003-gate-listener-api.patch` **deleted, not rebased**; the
+  floors now come from upstream rather than from a patch this repo carries.
 - [libtailscale#59](https://github.com/tailscale/libtailscale/pull/59) — a
   universal (arm64 + x86_64) macOS slice; upstream's Swift `Makefile` builds
   macOS arm64-only. **Open, no review yet.** It is what a *universal* macOS

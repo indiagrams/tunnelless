@@ -1,17 +1,8 @@
 diff --git a/swift/TailscaleKit/TailscaleNode.swift b/swift/TailscaleKit/TailscaleNode.swift
-index 34a6f94..d3ff557 100644
+index c1cc9a0..31500e0 100644
 --- a/swift/TailscaleKit/TailscaleNode.swift
 +++ b/swift/TailscaleKit/TailscaleNode.swift
-@@ -1,6 +1,8 @@
- // Copyright (c) Tailscale Inc & AUTHORS
- // SPDX-License-Identifier: BSD-3-Clause
- 
-+import Foundation
-+
- public let kDefaultControlURL = "https://controlplane.tailscale.com"
- 
- 
-@@ -66,6 +68,7 @@ public actor TailscaleNode {
+@@ -68,6 +68,7 @@ public actor TailscaleNode {
              throw TailscaleError.badInterfaceHandle
          }
          
@@ -19,7 +10,7 @@ index 34a6f94..d3ff557 100644
          logger?.log("Tailscale starting: \(tailscale)")
  
          if let fd = logger?.logFileHandle {
-@@ -81,7 +84,9 @@ public actor TailscaleNode {
+@@ -83,7 +84,9 @@ public actor TailscaleNode {
          tailscale_set_control_url(tailscale, config.controlURL)
          tailscale_set_ephemeral(tailscale, config.ephemeral ? 1 : 0)
  
@@ -29,7 +20,7 @@ index 34a6f94..d3ff557 100644
  
          guard res == 0 else {
              throw TailscaleError.fromPosixErrCode(res, tailscale.getErrorMessage())
-@@ -92,6 +97,7 @@ public actor TailscaleNode {
+@@ -94,6 +97,7 @@ public actor TailscaleNode {
  
      deinit {
          if let tailscale {
@@ -37,7 +28,7 @@ index 34a6f94..d3ff557 100644
              tailscale_close(tailscale)
          }
      }
-@@ -106,6 +112,7 @@ public actor TailscaleNode {
+@@ -108,6 +112,7 @@ public actor TailscaleNode {
              throw TailscaleError.badInterfaceHandle
          }
  
@@ -45,12 +36,12 @@ index 34a6f94..d3ff557 100644
          logger?.log("Closing Tailscale: \(tailscale)")
          let res = tailscale_close(tailscale)
  
-@@ -126,7 +133,9 @@ public actor TailscaleNode {
-         }
- 
+@@ -130,7 +135,9 @@ public actor TailscaleNode {
          logger?.log("Bringing Tailscale up :\(tailscale)")
+         // up() is locking pending successful login.  Run in a detached task so we
+         // don't block the actor.
 +        NSLog("[TailscaleKit] up(): calling tailscale_up sd=%d", tailscale)
-         let res = tailscale_up(tailscale)
+         let res = await Task.detached { tailscale_up(tailscale) }.value
 +        NSLog("[TailscaleKit] up(): tailscale_up sd=%d returned res=%d", tailscale, res)
  
          guard res == 0 else {

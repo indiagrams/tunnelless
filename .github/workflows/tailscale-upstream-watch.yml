@@ -97,9 +97,13 @@ jobs:
           # whose fix is not in the pinned version.
           #
           # fields: file|kind|repo|number
+          # 0002 (libtailscale#58, merged 61e8513) and 0003 (libtailscale#60,
+          # merged 8564835) were retired on 2026-08-31 by bumping the submodule
+          # past both and DELETING the patch files. They are gone from this list
+          # because they are gone from tailscale/patches/ — this registry
+          # describes what is carried now, not what was ever carried. The
+          # unwatched-patch guard below is what keeps the two in step.
           PATCH_ROWS="
-          0002-up-off-actor.patch|merge|libtailscale|58
-          0003-gate-listener-api.patch|merge|libtailscale|60
           0001-tailscalekit-nslog-tracing.patch|manual||
           @module-cache-bus-guard|release|tailscale|20985
           "

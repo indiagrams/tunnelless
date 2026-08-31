@@ -72,6 +72,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **Patches `0002-up-off-actor` and `0003-gate-listener-api` — deleted, not rebased.** Both landed upstream on 2026-08-31 ([libtailscale#58](https://github.com/tailscale/libtailscale/pull/58) as `61e8513`, [libtailscale#60](https://github.com/tailscale/libtailscale/pull/60) as `8564835`), and `vendor/libtailscale` was bumped `5e89501` → `59d4bb8` to pick them up. Deleting rather than rebasing is the standing rule for a patch upstream has absorbed: upstream now carries the same shape, so a rebase would reapply what is already there.
+
+  Verified rather than assumed. `0002`'s mechanism is upstream verbatim — `let res = await Task.detached { tailscale_up(tailscale) }.value` — and `0003`'s `@available(iOS 18.0, macOS 15.0, tvOS 18.0, watchOS 11.0, *)` is present on both `Listener.swift` and `IncomingConnection.swift`. Neither patch reverse-applied cleanly, which is only evidence that the text differs, not that the fix is present; the files were read.
+
+  **Carried patches: 3 → 1.** The lowered iOS 17 / macOS 14 floors now come from upstream rather than from a patch this repo applies, which was the point of v0.2: carry nothing an adopter would inherit.
+
+### Changed
+
+- **`0001-tailscalekit-nslog-tracing` rebased onto the bumped submodule.** It is not upstream and stays carried — `macos-sandbox-check.yml` greps for the tracing it adds. The bump moved it in two ways: `import Foundation` is now provided upstream (by `8077131`), so that hunk was dropped, and its `up()` hunk had to be re-cut onto #58's detached-task form rather than the old inline `tailscale_up(tailscale)` call. All 7 NSLog statements are preserved and the patch applies cleanly.
+
+- **`tailscale-upstream-watch.yml`'s patch registry** drops the `0002` and `0003` rows, because the registry describes what is carried now. Its unwatched-patch guard is what keeps the list and `tailscale/patches/` in step, and both now hold exactly `0001`.
+
 - **Module-cache Patch 1 (darwin `os.Executable` fallback) is gone.** It merged
   upstream as `tailscale#19052` and shipped in **v1.98.0**; the pin has been
   `v1.102.3` since the last bump, so the block did nothing but print "already
