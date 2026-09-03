@@ -81,20 +81,25 @@ Two separate things share this repo's tags, which is worth knowing:
 | `0.1.0`, `0.2.0`, … | SwiftPM package versions — what `from:` resolves |
 | `tailscalekit-v1.102.3` | the xcframework binary release the package downloads |
 
-> **Pin with `from:`, not `exact:`, below `0.1.1`.** Package versions in the
-> `0.1.0` series (tags `0.1.0` and `v0.1.0+1`…`+7`) declare `iOS 17 / macOS 14`
-> while pinning an xcframework whose slices were built at **iOS 18.1 / macOS
-> 15.6**. SwiftPM resolves them happily — the checksum is genuine — and then
-> dyld refuses the framework at launch on iOS 17.0–18.0 and macOS 14.0–15.5.
-> `from: "0.1.0"` is safe: it resolves forward to `0.1.1`, whose declarations
-> match its binary. `exact: "0.1.0"`, `upToNextMinor(from: "0.1.0")`, and a
-> `Package.resolved` restored from that era are the affected cases.
+> **Versions below `0.1.0+6` were withdrawn.** Tags `v0.0.1+1`, `0.1.0` and
+> `v0.1.0+1`…`+5` declared `iOS 17 / macOS 14` while pinning an xcframework
+> whose slices were built at **iOS 18.1 / macOS 15.6**. SwiftPM resolved them
+> happily — the checksum was genuine — and dyld then refused the framework at
+> launch on iOS 17.0–18.0 and macOS 14.0–15.5. They were deleted on 2026-09-02
+> rather than left as a silent trap.
 >
-> Fixed on `main` by publishing the lowered-floor framework
-> (`tailscalekit-v1.102.3+3`); the already-published `0.1.0` tags cannot be
-> retroactively corrected. `ci/check-release-commit.sh` now prevents a release
-> tag being cut from a commit whose floors were never checked against the asset
-> it pins.
+> `0.1.0` still resolves, now to `v0.1.0+6`, whose declarations match its binary
+> (`tailscalekit-v1.102.3+2`, measured at 17.0 / 14.0). Nothing to change.
+>
+> **If you resolved `0.1.0` before 2026-09-02**, SwiftPM may refuse with
+> `Revision … does not match previously recorded value`. That is its fingerprint
+> database remembering the withdrawn revision, not a corrupt package. Clear the
+> entry and re-resolve:
+>
+> ```sh
+> rm ~/Library/org.swift.swiftpm/security/fingerprints/tunnelless-*.json
+> swift package resolve
+> ```
 
 The package vends nothing but the prebuilt `TailscaleKit.xcframework`, pinned
 by SHA-256 — a moved or rewritten asset fails resolution rather than silently

@@ -256,9 +256,10 @@ nobody runs is not a check:
   checks fetch the asset `Package.swift` pins and run
   `ci/check-platform-floors.sh` against it, so only a commit contained in main
   has had that invariant verified. Override with `ALLOW_UNMERGED_RELEASE=1`.
-  Added after the v0.2 audit found tags `0.1.0` and `v0.1.0+1`…`+7` declaring
-  iOS 17 / macOS 14 while pinning an 18.1 / 15.6 binary
-  (`.planning/v0.2-MILESTONE-AUDIT.md`, BLOCKER-1).
+  Added after the v0.2 audit found tags `v0.0.1+1`, `0.1.0` and `v0.1.0+1`…`+5`
+  declaring iOS 17 / macOS 14 while pinning an 18.1 / 15.6 binary
+  (`.planning/v0.2-MILESTONE-AUDIT.md`, BLOCKER-1). Those tags were deleted on
+  2026-09-02; `v0.1.0+6` onward pin the lowered framework and were always sound.
 
 `ci/check-app-icon.sh` is a different case, and the distinction is worth keeping
 straight: the **script is template-owned and byte-identical to apple-shipkit** —
