@@ -1,0 +1,33 @@
+# Registry of every patch this repo carries against upstream.
+#
+# ONE source of truth, read by two consumers:
+#   - ci/check-patch-registry.sh          per-PR: every carried patch has a row,
+#                                         and every row still describes something
+#                                         carried
+#   - .github/workflows/tailscale-upstream-watch.yml
+#                                         weekly: has each row's upstream fix
+#                                         merged AND shipped yet
+#
+# fields: file|kind|repo|number
+#
+#   file    a filename in tailscale/patches/, or an `@id` for a patch applied
+#           inline by tailscale/build-tailscalekit.sh (no .patch file exists).
+#           An `@id` must match a `# PATCH-REGISTRY: @id` marker in that script.
+#   kind    manual   retirement is a human decision; nothing upstream gates it
+#           merge    retires when the upstream PR MERGES
+#           release  retires when a RELEASE carries the fix. Not the same as
+#                    merge: #20985 merged 2026-08-26 and is still absent from
+#                    v1.102.3 and v1.103.0-pre. Confusing the two is a bug in
+#                    both directions — one carries a patch for months, the other
+#                    deletes a patch whose fix is not in the pinned version.
+#   repo    upstream repo under github.com/tailscale/ (blank for kind=manual)
+#   number  upstream PR number (blank for kind=manual)
+#
+# This registry describes what is carried NOW, not what was ever carried. 0002
+# (libtailscale#58, merged 61e8513) and 0003 (libtailscale#60, merged 8564835)
+# were retired on 2026-08-31 by bumping the submodule past both and DELETING the
+# patch files, so their rows are gone too. ci/check-patch-registry.sh is what
+# keeps the file list and this list in step, in both directions.
+
+0001-tailscalekit-nslog-tracing.patch|manual||
+@module-cache-bus-guard|release|tailscale|20985

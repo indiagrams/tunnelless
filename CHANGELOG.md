@@ -70,6 +70,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The unwatched-patch guard fired up to a week late, and could not see inline patches (W-5).** The registry of patches carried against upstream was real, and so was its completeness check — but that check lived inside `tailscale-upstream-watch.yml`, which is `schedule` + `workflow_dispatch` only. A PR adding an unwatched patch merged clean and the complaint arrived on the next Monday, addressed to whoever read the issue. A guard that fires a week after the mistake is a report, not a gate.
+
+  It was blind in a second way: it enumerated `tailscale/patches/*.patch` and nothing else. The Bus-guard patch is applied **inline** against the Go module cache by `build-tailscalekit.sh` — there is no `.patch` file — so it was watched only because someone hand-wrote its `@` row. A second inline patch would have been carried with nothing to notice it.
+
+  The registry moves to `tailscale/patches/REGISTRY`, one file read by both consumers, and the completeness check becomes `ci/check-patch-registry.sh`, running on **every PR** and in `ci/local-check.sh`. It checks both directions — a carried patch with no row, and a row for a patch no longer carried — and covers inline patches by requiring a `# PATCH-REGISTRY: @id` marker for each, with the count of markers required to equal the count of module-cache paths the script derives. That last equality is what makes a new inline patch impossible to add silently. `tailscale-upstream-watch.yml` keeps only the part that genuinely needs the network: has each fix merged **and** shipped.
+
+  Mutation-verified: a new unregistered `.patch` fails; a second unmarked module-cache target fails (the exact W-5 case); a stale row for a deleted patch fails; an empty registry fails rather than passing vacuously.
+
+- **The module-cache patch's upgrade path produced a weaker guard, and the assertion accepted it (W-6).** `build-tailscalekit.sh` patches `tsnet.go` so `close()` cannot `EXC_BAD_ACCESS`. The fresh path emits the full guard:
+
+  ```go
+  if s.sys != nil {
+      if bus, ok := s.sys.Bus.GetOK(); ok && bus != nil { bus.Close() }
+  }
+  ```
+
+  The *upgrade* path — reached when a stale `GOMODCACHE` still holds this repo's own earlier patch — rewrote only the inner line, swapping `Get()` for `GetOK()` and leaving the block **without** the `if s.sys != nil` wrapper. `GetOK()` stops `SubSystem.Get()` panicking on an unset subsystem; it does nothing about `s.sys` itself being nil, which is the crash the patch exists to prevent. And the post-patch assertion grepped only for `Bus.GetOK()` — which the weaker form satisfies — so **the check passed on precisely the output that was broken.**
+
+  The upgrade path now replaces the whole intermediate block, producing output byte-identical to the fresh path, and refuses an unrecognised stale block rather than half-upgrading it. The assertion requires both halves. Verified by running the extracted patch logic against each starting state: fresh and intermediate now converge on the same full guard, an unknown partial is refused with the file untouched, and the old logic's output is confirmed to pass the old assertion and fail the new one.
+
 - **The floor check never read the simulator slice, and read only the first arch of a fat one (W-12).** `ci/check-platform-floors.sh` compared the three declaration sites against `ios-arm64` and `macos-arm64` only. Two holes followed from that.
 
   The simulator slice went unchecked entirely — and it is the slice `tailscale/verify-floor-runtime.sh` loads to *prove* the iOS floor is real, by launching the app on an old simulator. So the structural half of the floor evidence and the runtime half never overlapped: the proof was run against a binary whose floor nothing had verified, and taken to establish the floor of the device binary. That is the same trap REQ-V03-4 already fell into once, when a runtime proof against `+2` was assumed to hold for `+3` and did not, because the two floors came from different mechanisms.

@@ -112,6 +112,10 @@ cd "$SWIFT_DIR"
 # path stopped resolving, both patches below hit their "not found" WARNING branch, and
 # the build produced an xcframework missing the Bus nil guard — a crash fix — with no
 # error. Deriving it keeps the patches attached to whatever version is actually built.
+# PATCH-REGISTRY: @module-cache-bus-guard
+# Inline patch, no .patch file. ci/check-patch-registry.sh requires this
+# marker for every module-cache path the script derives, so a second inline
+# patch cannot be added without a registry row (W-5).
 TSNET_GO="$(go env GOMODCACHE)/tailscale.com@${TSNET_VERSION}/tsnet/tsnet.go"
 if [ ! -f "$TSNET_GO" ]; then
   echo "ERROR: $TSNET_GO not found — run 'go mod download' in $LIBTAILSCALE_DIR first"
@@ -162,13 +166,30 @@ if [ -f "$TSNET_GO" ]; then
     # with "Permission denied" even after chmod u+w on the file itself. python3 opens the
     # existing file for writing, which only needs the file bit. (Patch 1 above always used
     # python3 and worked; Patch 2 used sed and silently did nothing.)
+    #
+    # W-6. The "intermediate" state is this repo's OWN earlier patch, left in a
+    # stale GOMODCACHE. Upgrading it used to rewrite only the inner line:
+    #
+    #     if bus := s.sys.Bus.Get(); bus != nil {
+    #       ->  if bus, ok := s.sys.Bus.GetOK(); ok && bus != nil {
+    #
+    # That swaps Get() for GetOK() but leaves the block WITHOUT the
+    # 'if s.sys != nil' wrapper the fresh path produces. GetOK() stops
+    # SubSystem.Get() panicking on an unset subsystem; it does nothing about
+    # s.sys itself being nil, which is the EXC_BAD_ACCESS this patch exists to
+    # fix. The result then PASSED the post-patch assertion, because that grepped
+    # only for 'Bus.GetOK()' -- which the weaker form satisfies. A check the
+    # broken output passes is not a check.
+    #
+    # So the whole intermediate block is replaced, producing output identical to
+    # the fresh path, and an unrecognised stale block is refused rather than
+    # half-upgraded. The assertion below now requires both halves.
     python3 -c "
 import sys
 p = '$TSNET_GO'
 with open(p) as f:
     c = f.read()
 
-intermediate = 'if bus := s.sys.Bus.Get(); bus != nil {'
 original = '\to.sys.Bus.Get().Close()'.replace('o.', 's.')
 guard = ('\tif s.sys != nil {\n'
          '\t\tif bus, ok := s.sys.Bus.GetOK(); ok && bus != nil {\n'
@@ -176,12 +197,23 @@ guard = ('\tif s.sys != nil {\n'
          '\t\t}\n'
          '\t}')
 
-if intermediate in c:
-    c = c.replace(intermediate, 'if bus, ok := s.sys.Bus.GetOK(); ok && bus != nil {')
-    label = 'Upgraded Bus nil guard to GetOK()'
+# W-6: replace the whole intermediate BLOCK, not just its first line -- see the
+# shell comment above this python invocation for why.
+intermediate_block = ('\tif bus := s.sys.Bus.Get(); bus != nil {\n'
+                      '\t\tbus.Close()\n'
+                      '\t}')
+intermediate_marker = 'if bus := s.sys.Bus.Get(); bus != nil {'
+
+if intermediate_block in c:
+    c = c.replace(intermediate_block, guard)
+    label = 'Upgraded Bus nil guard to GetOK() (full guard restored)'
 elif original in c:
     c = c.replace(original, guard)
     label = 'Applied Bus nil guard (GetOK) patch'
+elif intermediate_marker in c:
+    sys.exit('ERROR: Bus nil guard — found a partial older guard whose block shape '
+             'is not recognised, so upgrading it would be guesswork. '
+             'Clear the module cache and rebuild: go clean -modcache')
 else:
     sys.exit('ERROR: Bus nil guard — no known pattern matched in tsnet.go')
 
@@ -197,8 +229,19 @@ print('--- ' + label + ' ---')
   # Fail loudly if the guard is not present. This patch is a crash fix
   # (EXC_BAD_ACCESS in tsnet.close()) and is NOT upstream, so shipping an
   # xcframework without it must never be silent.
+  # Both halves, not just GetOK(). The weaker form -- GetOK() with no
+  # `if s.sys != nil` wrapper -- satisfied a grep for 'Bus.GetOK()' alone while
+  # still nil-dereferencing s.sys, so this assertion used to pass on precisely
+  # the output that was broken (W-6).
   if ! grep -q 'Bus.GetOK()' "$TSNET_GO"; then
     echo "ERROR: Bus nil guard missing from $TSNET_GO after patching — refusing to build"
+    exit 1
+  fi
+  if ! grep -q 'if s.sys != nil' "$TSNET_GO"; then
+    echo "ERROR: Bus nil guard is present but NOT wrapped in 'if s.sys != nil' in $TSNET_GO."
+    echo "       GetOK() alone stops the unset-subsystem panic; it does not stop s.sys"
+    echo "       itself being nil, which is the EXC_BAD_ACCESS this patch exists to fix."
+    echo "       Usually a stale module cache: go clean -modcache, then rebuild."
     exit 1
   fi
 else
