@@ -7,11 +7,15 @@
 #
 # WHY THIS EXISTS
 #
-# The `v*` tag `make ship` pushes does double duty: it is the app's release
-# marker AND the version a SwiftPM consumer resolves. What that consumer gets is
-# determined entirely by the COMMIT the tag names -- Package.swift's declared
-# platforms and its pinned xcframework URL -- and not by anything sitting in the
-# local vendor/ directory.
+# The release tag names a COMMIT, and for an app tag that commit is what gets
+# built and shipped. It is also what a SwiftPM consumer resolves -- but only
+# while the tag is SwiftPM-visible. Since RELEASE_TAG_PREFIX=app/v (backlog
+# 999.2) the app tags are prefixed out of SwiftPM's namespace, so the double duty
+# applies to bare `X.Y.Z` package tags rather than to every ship. The guard below
+# is unchanged either way: a release must come from a commit origin/main
+# contains, because only main's required checks verify that Package.swift's
+# declared platforms match the xcframework it actually pins -- and never anything
+# sitting in the local vendor/ directory.
 #
 # main's branch protection requires the six `app (...)` jobs. Those jobs fetch
 # the xcframework that Package.swift PINS and then run ci/check-platform-floors.sh
@@ -35,7 +39,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 if [ "${ALLOW_UNMERGED_RELEASE:-0}" = "1" ]; then
   echo "  WARN ALLOW_UNMERGED_RELEASE=1 -- shipping a commit origin/main may not contain."
-  echo "       The tag you push is also the SwiftPM version other people resolve."
+  echo "       The tag you push comes from a commit whose Package.swift nothing verified."
   exit 0
 fi
 
@@ -68,13 +72,26 @@ if git merge-base --is-ancestor "$HEAD_SHA" origin/main 2>/dev/null; then
   PKG_TAG="$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift 2>/dev/null | head -1 | sed 's|download/||; s|/$||')"
   PKG_IOS="$(grep -oE '\.iOS\((\.v[0-9]+|"[0-9.]+")\)' Package.swift 2>/dev/null | head -1)"
   PKG_MAC="$(grep -oE '\.macOS\((\.v[0-9]+|"[0-9.]+")\)' Package.swift 2>/dev/null | head -1)"
-  echo "  note This tag is ALSO a SwiftPM package version."
-  echo "       Adopters resolving this repo get Package.swift as it stands at ${HEAD_SHA:0:8}:"
-  echo "         pins     ${PKG_TAG:-<none found>}"
-  echo "         declares ${PKG_IOS:-?} ${PKG_MAC:-?}"
-  echo "       Bumping MARKETING_VERSION for the App Store publishes a package"
-  echo "       version too. That is correct only if the above is what you want"
-  echo "       adopters to resolve. See .planning/v0.2-MILESTONE-AUDIT.md, W-1."
+  # Whether this tag is ALSO a package version now depends on the prefix.
+  # SwiftPM only claims tags that parse as a version, so anything with a
+  # non-version prefix (app/v...) is invisible to it -- measured, see 999.2.
+  RELEASE_TAG_PREFIX="${RELEASE_TAG_PREFIX-v}"
+  if [ -z "$RELEASE_TAG_PREFIX" ] || [ "$RELEASE_TAG_PREFIX" = "v" ]; then
+    echo "  note This tag is ALSO a SwiftPM package version."
+    echo "       Adopters resolving this repo get Package.swift as it stands at ${HEAD_SHA:0:8}:"
+    echo "         pins     ${PKG_TAG:-<none found>}"
+    echo "         declares ${PKG_IOS:-?} ${PKG_MAC:-?}"
+    echo "       Bumping MARKETING_VERSION for the App Store publishes a package"
+    echo "       version too. That is correct only if the above is what you want"
+    echo "       adopters to resolve. See .planning/v0.2-MILESTONE-AUDIT.md, W-1."
+  else
+    echo "  note This tag is an APP release only (prefix '${RELEASE_TAG_PREFIX}')."
+    echo "       SwiftPM ignores tags that do not parse as a version, so this ship"
+    echo "       publishes NO package version — adopters stay where they are until"
+    echo "       somebody cuts a bare X.Y.Z tag on purpose. That separation is"
+    echo "       backlog 999.2; W-1's silent-publish incident cannot recur here."
+    echo "       Package.swift at ${HEAD_SHA:0:8} pins ${PKG_TAG:-<none found>}, declares ${PKG_IOS:-?} ${PKG_MAC:-?}."
+  fi
   exit 0
 fi
 
@@ -82,10 +99,10 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
 cat >&2 <<MSG
   FAIL HEAD ${HEAD_SHA:0:8} (${BRANCH}) is NOT contained in origin/main.
 
-       The tag this would push is also the version SwiftPM consumers resolve,
-       and what they get is decided by this commit -- its declared platforms and
-       its pinned xcframework URL. Only main's required checks verify that the
-       pinned asset's actual floors match what Package.swift declares.
+       The tag this would push names this commit, and what gets built and
+       shipped is decided by it -- its declared platforms and its pinned
+       xcframework URL. Only main's required checks verify that the pinned
+       asset's actual floors match what Package.swift declares.
 
        Open a PR and merge it, then ship from main.
        Override (and own the consequence): ALLOW_UNMERGED_RELEASE=1 make ship

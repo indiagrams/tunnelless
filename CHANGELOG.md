@@ -68,6 +68,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reaches users with the next app build. The declarations changing does not
   alter the `0.1.0` binaries currently in App Review.
 
+### Changed
+
+- **Release tags moved out of SwiftPM's namespace: `make ship` now pushes `app/v0.1.2+10` (backlog 999.2, audit W-1).** This repo is both an app and a SwiftPM package, and SwiftPM claims every tag that parses as a version — so `v0.1.1+9` was simultaneously the app's release marker and package version `0.1.1`. An App Store metadata bump published a package version; adopters got a bump from a commit that never mentioned SwiftPM.
+
+  **Decided on a measurement, and it contradicted the plan.** The roadmap's third option was "publish the package from a separate tag series SwiftPM resolves". Tagging this repo and resolving against it showed that option does not exist:
+
+  | tags present | `.upToNextMajor(from: "0.1.0")` resolved to |
+  |---|---|
+  | `pkg-0.3.0`, `package/0.4.0`, `release/0.5.0`, `milestone/v0.2` | `0.1.1+9` — every prefixed tag ignored |
+  | `v0.2` | `0.2.0` — a bare tag claimed immediately |
+
+  SwiftPM cannot be pointed at a non-default tag scheme. But the inverse works and was not in the options list at all: move the **app** tags out of its view and leave the package namespace clean. Neither of the remaining options was needed — the package did not have to move to its own repo, and the coupling did not have to be accepted.
+
+  Implemented **upstream** as `RELEASE_TAG_PREFIX` so every fork gets it ([apple-shipkit#286](https://github.com/indiagrams/apple-shipkit/pull/286), plus [#287](https://github.com/indiagrams/apple-shipkit/pull/287) fixing plumbing that #286 shipped incomplete — the value never reached `.bootstrap.env` readers *or* the fastlane subprocess, so `ship.rb` would have computed `app/v0.1.2+10` and handed it to a process that still stripped `v`). Unset means `v`, so no other fork changes behaviour.
+
+  Verified end to end here: `bin/compute-release-tag.rb` returns `app/v0.1.1+10` from `.bootstrap.env`, and `RELEASE_TAG_PREFIX=v` returns `v0.1.1+10` — env precedence and default-equivalence both proven on the real path.
+
+  `v0.1.0+6` and `v0.1.1+9` stay published and remain the current package versions; every reader strips the configured prefix then falls back to a bare `v`, so pre-change tags still parse. `ci/check-release-commit.sh` now says which kind of tag a ship is about to push — its W-1 "this is also a package version" note fires only when the tag really is SwiftPM-visible. **A package release now requires cutting a bare `X.Y.Z` tag on purpose.**
+
 ### Fixed
 
 - **The unwatched-patch guard fired up to a week late, and could not see inline patches (W-5).** The registry of patches carried against upstream was real, and so was its completeness check — but that check lived inside `tailscale-upstream-watch.yml`, which is `schedule` + `workflow_dispatch` only. A PR adding an unwatched patch merged clean and the complaint arrived on the next Monday, addressed to whoever read the issue. A guard that fires a week after the mistake is a report, not a gate.
