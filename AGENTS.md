@@ -233,7 +233,7 @@ Consequences worth knowing:
 
 ### Accepted divergence: fork-owned preflight checks
 
-Three guards are fork-owned and wired into template-owned files, because a check
+Six guards are fork-owned and wired into template-owned files, because a check
 nobody runs is not a check:
 
 - `ci/check-auth-isolation.sh` — asserts the `ASWebAuthenticationSession`
@@ -247,6 +247,26 @@ nobody runs is not a check:
   device, which `notes.txt` promises App Review it will. Needs `TS_DEMO_API_KEY`
   (an access token for the **demo** account, not your own); warns rather than
   fails when unset. Wired into `ci/local-check.sh`.
+- `ci/check-platform-floors.sh` — every declared deployment target must be at or
+  above the `minos` of the framework slice it loads, across `app/project.yml`,
+  `app/Project.swift` and `Package.swift`. Reads the **simulator** slice as well
+  as the two device slices, and every arch within a fat slice, because
+  `tailscale/verify-floor-runtime.sh` proves the floor by launching on an old
+  simulator — so if the simulator and device slices disagree, that proof does not
+  transfer to the shipped binary. Wired into `pr.yml`, `ci/local-check.sh` and
+  `ci/local-release-check.sh`.
+- `tailscale/validate-xcframework.sh` — the bundle is well-formed: no symlinks in
+  iOS slices, `PrivacyInfo.xcprivacy` present, simulator slice present, no
+  Tailscale team ID left in the binary signing. Wired into `pr.yml`,
+  `release.yml`, `tailscale-bump.yml`, `release-xcframework.yml` and
+  `ci/local-release-check.sh`.
+
+  Those last two were the **W-8** gap: both ran in the workflows and neither ran
+  in `ci/local-release-check.sh`. Since `release.yml` has never run and the local
+  `make ship` path produced every release actually published, the guards covered
+  the path nobody used and skipped the one everybody used. They now run first in
+  that script, before `xcodegen` and before any archive, so a bad framework fails
+  in seconds instead of after a full signed build.
 - `ci/check-release-commit.sh` — refuses to cut a release tag on a commit that
   `origin/main` does not contain. Wired into the `Makefile`'s `ship` target as a
   prerequisite. The `v*` tag `make ship` pushes is simultaneously the app's

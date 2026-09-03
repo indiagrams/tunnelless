@@ -155,6 +155,31 @@ else
   fail "Tag '$TAG' does not match v[0-9]+.[0-9]+.[0-9]+(...) (e.g. v0.1.0, v0.1.0-rc1)"
 fi
 
+# ── Framework guards (FORK-OWNED — see AGENTS.md "Accepted divergence") ───────
+#
+# W-8. These two guards ran in pr.yml, release.yml, tailscale-bump.yml and
+# release-xcframework.yml -- and NOT here. That is backwards: release.yml has
+# never run (0 runs, ever), while this script is the local `make ship` path that
+# produced every release the project has actually published. The guards covered
+# the path nobody used and skipped the one everybody used.
+#
+# What they catch is exactly what a build cannot: an xcframework that is
+# malformed, or whose slices were built at a HIGHER floor than the app and
+# Package.swift declare. That combination compiles, signs, uploads and installs,
+# then dyld refuses the framework at launch on the OS versions the floor
+# promised. This repo shipped it twice.
+#
+# Placed before xcodegen and before any archive, so a bad framework fails in
+# seconds rather than after a full signed build -- the same ordering rationale
+# as fetching the asset before minting certificates in release.yml.
+step "xcframework is well-formed"
+bash tailscale/validate-xcframework.sh || fail "xcframework failed validation — see tailscale/validate-xcframework.sh"
+ok "validate-xcframework.sh passed"
+
+step "declared platform floors match the framework slices"
+./ci/check-platform-floors.sh || fail "a declared platform floor is below the slice it loads — see ci/check-platform-floors.sh"
+ok "check-platform-floors.sh passed"
+
 # ── Regenerate xcodeproj + Generated-Info.plist ───────────────────────────────
 
 step "xcodegen generate"
