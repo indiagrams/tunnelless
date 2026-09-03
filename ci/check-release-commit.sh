@@ -19,7 +19,8 @@
 # against the asset it actually pins. A commit that is not contained in main has
 # had no such check.
 #
-# This is the guard that was missing when tags 0.1.0 and v0.1.0+1..+7 were cut
+# This is the guard that was missing when tags v0.0.1+1, 0.1.0 and v0.1.0+1..+5
+# were cut
 # declaring iOS 17 / macOS 14 while pinning an xcframework whose slices were
 # built at 18.1 / 15.6. SwiftPM resolves that happily -- the checksum is genuine
 # -- and dyld then refuses the framework at launch on iOS 17.0-18.0 and macOS
