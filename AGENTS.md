@@ -280,25 +280,49 @@ upstream sync — re-apply the step and the job.
 flattening); see the file header for why the template's centred crop produced
 non-deterministic screenshots and an alpha channel Apple rejects.
 
-### Accepted divergence: the TailscaleKit fetch step in `pr.yml`
+### Accepted divergence: the TailscaleKit fetch step in `pr.yml` and `release.yml`
 
-`.github/workflows/pr.yml` is template-owned, and this fork edits it anyway —
-one step, `fetch TailscaleKit.xcframework`, plus `submodules: true` on the
-`app` job's checkout.
+`.github/workflows/pr.yml` and `.github/workflows/release.yml` are both
+template-owned, and this fork edits both anyway — one `fetch
+TailscaleKit.xcframework` step each, plus `submodules: true` on `pr.yml`'s `app`
+job checkout.
 
-**Why it can't live anywhere else.** `pr.yml` has no fork-owned seam: the `app`
-job goes straight from "regenerate Xcode project" to "build iOS device", with no
-`local-check.sh` hook to attach to, and nothing in `Fastfile.local` runs during a
-PR check. Without a fetch step, every app job fails at
-`There is no XCFramework found`.
+**Why it can't live anywhere else.** Neither workflow has a fork-owned seam.
+`pr.yml`'s `app` job goes straight from "regenerate Xcode project" to "build iOS
+device", with no `local-check.sh` hook to attach to, and nothing in
+`Fastfile.local` runs during a PR check. `release.yml` goes from toolchain setup
+to `fastlane release`. `vendor/TailscaleKit.xcframework` is ~94 MB and
+gitignored, so without the step every affected job dies at `There is no
+XCFramework found`.
 
-**Cost.** `git merge upstream/main` will conflict on `pr.yml` whenever
-apple-shipkit touches the `app` job. The step is self-contained and marked
-`FORK-OWNED STEP` in-file, so the resolution is always "keep both".
+apple-shipkit itself will never carry this step: a template app has no
+xcframework. This is inherently fork-owned, not something to upstream.
 
-**Invariants it respects:** no hardcoded `APP_NAME`/`BUNDLE_ID`, no hardcoded
-Tailscale version (derived from `vendor/libtailscale/go.mod`), and the release
-slug is overridable via the `TSKIT_RELEASE_REPO` repo variable.
+**`release.yml` placement matters.** The step sits BEFORE the keychain and
+certificate steps, because minting release certs consumes an ASC certificate
+slot (see the `revoke-orphan-certs` machinery). A missing or corrupt asset must
+fail before that side effect, not after it. It is followed by
+`ci/check-platform-floors.sh`, mirroring `pr.yml`: a framework whose slices sit
+above the declared floors would otherwise be signed, uploaded, and then refused
+by dyld at launch.
+
+**History.** `release.yml` had no fetch step at all until 2026-09-02. It was
+latent rather than breaking only because the workflow had never been run — every
+ship to date went through `make ship` / `make submit` locally. Found by the v0.2
+milestone audit (`.planning/v0.2-MILESTONE-AUDIT.md`, BLOCKER-2).
+
+**Cost.** `git merge upstream/main` will conflict on either file whenever
+apple-shipkit touches the surrounding steps. Each step is self-contained and
+marked `FORK-OWNED STEP` in-file, so the resolution is always "keep both".
+
+**Invariants they respect:** no hardcoded `APP_NAME`/`BUNDLE_ID`, no hardcoded
+Tailscale version, and the release slug is overridable via the
+`TSKIT_RELEASE_REPO` repo variable. The xcframework tag is resolved from
+`Package.swift` — what a SwiftPM consumer actually fetches — and cross-checked
+against `tailscale/TAILSCALE_VERSION`, so CI cannot build against a different
+tsnet version than the repo pins. (An earlier revision of this note said the tag
+came from `vendor/libtailscale/go.mod`; that has not been true since the tag
+resolution moved to `Package.swift`.)
 
 ### Stale pointers in template-owned files
 
