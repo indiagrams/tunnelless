@@ -54,6 +54,27 @@ fi
 HEAD_SHA="$(git rev-parse HEAD)"
 if git merge-base --is-ancestor "$HEAD_SHA" origin/main 2>/dev/null; then
   echo "  ok   HEAD ${HEAD_SHA:0:8} is contained in origin/main"
+
+  # ── W-1: say out loud what else this tag does ──────────────────────────────
+  # The `v*` tag is ALSO the SwiftPM version adopters resolve. That coupling has
+  # already caused one incident: e166466 bumped MARKETING_VERSION for an App
+  # Store submission and thereby published a new package version. Nothing in
+  # that commit mentioned SwiftPM, and nobody decided to publish a package.
+  #
+  # This gates nothing -- main's required `app (...)` checks already verify that
+  # the asset Package.swift pins really has the floors it declares. What was
+  # missing is that the side effect was SILENT. Now it is stated, at the moment
+  # it happens, to the person who can still stop.
+  PKG_TAG="$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift 2>/dev/null | head -1 | sed 's|download/||; s|/$||')"
+  PKG_IOS="$(grep -oE '\.iOS\((\.v[0-9]+|"[0-9.]+")\)' Package.swift 2>/dev/null | head -1)"
+  PKG_MAC="$(grep -oE '\.macOS\((\.v[0-9]+|"[0-9.]+")\)' Package.swift 2>/dev/null | head -1)"
+  echo "  note This tag is ALSO a SwiftPM package version."
+  echo "       Adopters resolving this repo get Package.swift as it stands at ${HEAD_SHA:0:8}:"
+  echo "         pins     ${PKG_TAG:-<none found>}"
+  echo "         declares ${PKG_IOS:-?} ${PKG_MAC:-?}"
+  echo "       Bumping MARKETING_VERSION for the App Store publishes a package"
+  echo "       version too. That is correct only if the above is what you want"
+  echo "       adopters to resolve. See .planning/v0.2-MILESTONE-AUDIT.md, W-1."
   exit 0
 fi
 

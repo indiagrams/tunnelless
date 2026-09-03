@@ -78,8 +78,21 @@ Two separate things share this repo's tags, which is worth knowing:
 
 | Tag | What it is |
 | --- | --- |
-| `0.1.0`, `0.2.0`, … | SwiftPM package versions — what `from:` resolves |
-| `tailscalekit-v1.102.3` | the xcframework binary release the package downloads |
+| `v0.1.1+9`, `v0.1.0+7`, … | **both** an app release marker **and** a SwiftPM package version — `+N` is the App Store build number, and SwiftPM ignores it for precedence, so `v0.1.1+9` is package version `0.1.1` |
+| `tailscalekit-v1.102.3+3` | the xcframework binary release the package downloads |
+
+**One namespace, two meanings — worth understanding before you cut a tag.** The
+release tag is computed as `vMARKETING+BUILD` from the app's marketing version
+and its App Store build number. So bumping the marketing version for an App
+Store submission *also publishes a SwiftPM package version*, whose content is
+whatever `Package.swift` says at that commit. That is how `0.1.1` came to exist
+as a package version: an app-metadata change created it.
+
+Two guards make this safe rather than merely survivable — `main`'s required
+checks fetch the xcframework `Package.swift` pins and verify its real floors
+match the declared ones, and `ci/check-release-commit.sh` refuses to cut a tag
+from a commit `main` does not contain, printing the package version the tag will
+publish. Separating the two namespaces properly is a backlog item.
 
 > **Versions below `0.1.0+6` were withdrawn.** Tags `v0.0.1+1`, `0.1.0` and
 > `v0.1.0+1`…`+5` declared `iOS 17 / macOS 14` while pinning an xcframework
