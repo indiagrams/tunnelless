@@ -83,7 +83,37 @@ jobs:
       - name: build the xcframework at the new version
         run: |
           set -o pipefail
-          bash tailscale/build-tailscalekit.sh 2>&1 | tail -40
+          # Full log to a file; tail only for the console. `| tail -40` alone
+          # DISCARDS the rest, and the one signal that distinguishes a framework
+          # built for a floor from one that merely CLAIMS that floor is an
+          # `ld: warning` emitted early in the macOS link -- thousands of lines
+          # before the end. This is the same truncation #53 fixed on the release
+          # path; it was left in place here, on the one workflow whose whole job
+          # is to change what the framework contains.
+          bash tailscale/build-tailscalekit.sh 2>&1 | tee /tmp/xcf-bump-build.log | tail -40
+
+          # A deployment-target mismatch between the Go archive and the Swift
+          # framework builds clean and stamps the lower number anyway.
+          # ci/check-platform-floors.sh cannot catch it -- it reads
+          # LC_BUILD_VERSION, which is the number the binary CLAIMS. This log
+          # line is the only evidence, so assert on it rather than hoping a
+          # human reads 40 lines of tail on a bot-authored PR.
+          if grep -q "was built for newer 'macOS' version" /tmp/xcf-bump-build.log; then
+            echo "::error::The Go archive and the Swift framework disagree on the macOS floor."
+            grep -m3 "was built for newer 'macOS' version" /tmp/xcf-bump-build.log
+            echo "A framework built from this bump would claim a floor it cannot honour."
+            exit 1
+          fi
+
+      # A bump PR is opened by a bot and reviewed by a human later. The console
+      # tail is gone by then; the artifact is not.
+      - name: upload the full build log
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xcframework-bump-build-log
+          path: /tmp/xcf-bump-build.log
+          if-no-files-found: warn
 
       - name: validate the xcframework
         run: bash tailscale/validate-xcframework.sh
