@@ -85,7 +85,7 @@ module Bootstrap
       KEYCHAIN_PASSWORD_FILE
     ].freeze
 
-    OPTIONAL = %w[ICON_1024_PATH ASC_APP_SKU ASC_APP_NAME PLATFORMS SUBMIT_FOR_REVIEW].freeze
+    OPTIONAL = %w[ICON_1024_PATH ASC_APP_SKU ASC_APP_NAME PLATFORMS SUBMIT_FOR_REVIEW RELEASE_TAG_PREFIX].freeze
 
     attr_reader :values
 
@@ -198,6 +198,18 @@ module Bootstrap
     def release_mode
       m = self["RELEASE_MODE"]
       m.empty? ? "ci" : m
+    end
+
+    # Prefix for the release tag `make ship` pushes. See
+    # Bootstrap::Version.tag_prefix for WHY this is configurable.
+    #
+    # Precedence: process env, then .bootstrap.env, then "v". An explicitly
+    # EMPTY value is honoured at both layers rather than falling through to "v".
+    def release_tag_prefix
+      return ENV["RELEASE_TAG_PREFIX"] if ENV.key?("RELEASE_TAG_PREFIX")
+      return @values["RELEASE_TAG_PREFIX"] if @values.key?("RELEASE_TAG_PREFIX")
+
+      "v"
     end
 
     # Returns the active platforms as an array of strings.
@@ -1591,6 +1603,10 @@ module Bootstrap
       # path since v1.6 (#158). We still propagate it here so any future
       # lane logic that wants to know the invocation context can read it.
       "RELEASE_MODE"            => config.release_mode,
+      # Without this, bin/ship.rb computes the tag with the configured prefix
+      # and then hands it to a fastlane subprocess that still believes the
+      # prefix is "v".
+      "RELEASE_TAG_PREFIX"      => config.release_tag_prefix,
       "FASTLANE_HIDE_CHANGELOG" => "1",
       "FASTLANE_SKIP_UPDATE_CHECK" => "1"
     }

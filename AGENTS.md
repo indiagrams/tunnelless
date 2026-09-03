@@ -231,6 +231,36 @@ Consequences worth knowing:
 
 ## Fork conventions
 
+### Release tags are prefixed `app/v`
+
+`RELEASE_TAG_PREFIX=app/v` in `.bootstrap.env`, so `make ship` pushes
+`app/v0.1.2+10` rather than `v0.1.2+10`.
+
+This repo is both an app and a SwiftPM package, and SwiftPM claims **every tag
+that parses as a version**. With the default `v`, an App Store metadata bump that
+produced `v0.1.1+9` also published package version `0.1.1` — adopters got a
+version bump from a commit that never mentioned SwiftPM (audit W-1).
+
+Measured before choosing: with `v0.2`, `pkg-0.3.0`, `package/0.4.0` and
+`release/0.5.0` all tagged here, `.upToNextMajor(from: "0.1.0")` resolved to
+`0.1.1+9` — every *prefixed* tag ignored — while a bare `v0.2` resolved as
+`0.2.0`. SwiftPM cannot be pointed at a different tag series, so the **app** tags
+move instead.
+
+| tag | what it is |
+|---|---|
+| `app/v0.1.2+10` | an app release. Invisible to SwiftPM |
+| `0.2.0` | a package release, cut deliberately |
+| `v0.1.0+6`, `v0.1.1+9` | pre-change tags. Still published, still the current package versions |
+| `tailscalekit-v1.102.3+3` | the xcframework asset, never a package version |
+
+Readers strip the configured prefix then fall back to a bare `v`, so pre-change
+tags still parse. The knob is upstream (`Bootstrap::Version.tag_prefix`,
+apple-shipkit#286/#287) and defaults to `v`, so no other fork is affected.
+**A package release now requires cutting a bare `X.Y.Z` tag on purpose** — that
+is the point, and `ci/check-release-commit.sh` says which kind of tag a ship is
+about to push.
+
 ### Accepted divergence: fork-owned preflight checks
 
 Seven guards are fork-owned and wired into template-owned files, because a check
