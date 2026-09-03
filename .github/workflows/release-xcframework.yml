@@ -184,6 +184,20 @@ jobs:
         if: steps.tag.outputs.build == 'yes'
         run: bash tailscale/validate-xcframework.sh
 
+      # W-4. validate-xcframework.sh checks the bundle is well-formed; this
+      # checks that what we DECLARE about it is true. Both build paths had a
+      # freshly built framework sitting right here and neither looked at its
+      # floors -- the mismatch was caught only later, on the manual
+      # Package.swift-bump PR, which is how tags shipped declaring a floor their
+      # binary could not honour.
+      #
+      # It cannot catch the ld-warning case (that is what the grep in the build
+      # step is for: this reads LC_BUILD_VERSION, the number the binary CLAIMS).
+      # Not a reason to omit it -- they catch different halves.
+      - name: check declared platform floors against what was just built
+        if: steps.tag.outputs.build == 'yes'
+        run: ./ci/check-platform-floors.sh
+
       - name: package
         if: steps.tag.outputs.publish == 'yes'
         run: |

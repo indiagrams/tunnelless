@@ -62,8 +62,11 @@ jobs:
       - name: install generator
         run: brew install xcodegen
 
-      # Same fetch as pr.yml's app job: derive the release tag from the pinned
-      # submodule's go.mod rather than hardcoding a version.
+      # Same fetch as pr.yml's app job: derive the release tag from
+      # Package.swift -- what a SwiftPM consumer actually resolves -- rather than
+      # hardcoding a version. #64 moved this off a separate TAILSCALE_VERSION
+      # source that had guarded the wrong binary for two releases; this comment
+      # still described the pre-#64 behaviour.
       - name: fetch TailscaleKit.xcframework
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -187,7 +190,8 @@ jobs:
           fi
 
           echo "::error::No tailscale_start result found in the log."
-          echo "::error::The [TailscaleKit] NSLog tracing comes from a patch carried in the"
-          echo "::error::indiagrams/libtailscale fork; if that patch was dropped during a bump,"
+          echo "::error::The [TailscaleKit] NSLog tracing comes from tailscale/patches/"
+          echo "::error::0001-tailscalekit-nslog-tracing.patch, carried in THIS repo (the"
+          echo "::error::indiagrams/libtailscale fork is gone). If that patch was dropped during a bump,"
           echo "::error::this guard goes blind. Restore it rather than deleting this check."
           exit 1

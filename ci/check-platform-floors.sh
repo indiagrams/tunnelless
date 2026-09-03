@@ -40,7 +40,12 @@ XCF="vendor/TailscaleKit.xcframework"
 fail=0
 
 if [ ! -d "$XCF" ]; then
-  echo "  FAIL $XCF not found — fetch or build it first (make bootstrap / tailscale/build-tailscalekit.sh)." >&2
+  echo "  FAIL $XCF not found. Get it with ONE of:" >&2
+  echo "         bash tailscale/build-tailscalekit.sh        # build it (~5 min, needs Go)" >&2
+  echo "         gh release download \"\$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift \\" >&2
+  echo "           | head -1 | sed 's|download/||; s|/\$||')\" \\" >&2
+  echo "           --pattern 'TailscaleKit.xcframework.zip' && unzip -q TailscaleKit.xcframework.zip -d vendor/" >&2
+  echo "       NOT \`make bootstrap\` — that installs xcodegen/tuist/bundler and does not fetch or build the framework." >&2
   echo "       Not skipping: an inert floor check is why the macOS floor stayed wrong in two of three files." >&2
   exit 1
 fi

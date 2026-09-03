@@ -118,6 +118,14 @@ jobs:
       - name: validate the xcframework
         run: bash tailscale/validate-xcframework.sh
 
+      # W-4. If a tsnet bump moves the deployment floors, the framework this PR
+      # would publish no longer matches what Package.swift and the app declare.
+      # Failing here is the correct signal on a bump: it says "this bump changes
+      # the floor, update the declarations in the same PR", which is exactly the
+      # review a bot-authored bump needs and cannot give itself.
+      - name: check declared platform floors against what was just built
+        run: ./ci/check-platform-floors.sh
+
       # The sandbox guard greps for the tracing this patch adds. If it went
       # missing the guard would silently pass on a broken build, so verify it
       # landed rather than assuming the patch step succeeded.

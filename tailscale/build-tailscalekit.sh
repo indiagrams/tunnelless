@@ -4,7 +4,9 @@
 # Usage: bash ci/build-tailscalekit.sh
 # Requires: Go 1.24.x in PATH, Xcode active (DEVELOPER_DIR set by caller)
 # Notes:
-#   - macOS slice requires macOS 15.0+ (MACOS_TARGET=15.0 in libtailscale Makefile)
+#   - macOS slice floor is 14.0 (MACOS_MIN below). libtailscale's Makefile still
+#     defaults MACOS_TARGET=15.0; this script overrides it. The old note here
+#     said 15.0+ and outlived the lowering.
 #   - macOS slice is arm64 only (Apple Silicon); no Intel x86_64 support
 #   - TailscaleKit (macOS) target exists in libtailscale/swift/TailscaleKit.xcodeproj
 set -euo pipefail
@@ -76,8 +78,13 @@ if [ -d "$SCRIPT_DIR/patches" ]; then
       echo "--- Patch already applied, skipping: $name ---"
     else
       echo "ERROR: patch does not apply to vendor/libtailscale: $name"
-      echo "Upstream libtailscale has changed underneath it. Rebase the patch;"
-      echo "do NOT drop it — macos-sandbox-check.yml greps for the tracing it adds."
+      echo "Upstream libtailscale has changed underneath it. Decide which case this is:"
+      echo "  - upstream ABSORBED the fix  -> DELETE the patch, do not rebase it"
+      echo "    (read the upstream file and confirm the mechanism is present;"
+      echo "     a patch that merely stopped applying proves only that text moved)"
+      echo "  - upstream moved around it   -> REBASE the patch"
+      echo "For 0001 specifically: do NOT drop it — macos-sandbox-check.yml greps"
+      echo "for the tracing it adds, and would pass silently on a build without it."
       exit 1
     fi
   done
@@ -203,8 +210,10 @@ fi
 # NOT upstream's defaults. TailscaleKit.xcodeproj sets IPHONEOS_DEPLOYMENT_TARGET
 # 18.1 and MACOSX_DEPLOYMENT_TARGET 15.0/15.6 — higher than anything the code
 # needs, and the 15.6 is an outlier even within upstream's own project (six
-# targets say 15.0, two say 15.6). With patch 0003 gating the listener API, the
-# real floors are set by ProxyConfiguration in URLSession+Tailscale.swift:
+# targets say 15.0, two say 15.6). With the listener API gated upstream by
+# @available (libtailscale#60 -- this used to be carried patch 0003, deleted in
+# e617edf once upstream took it), the real floors are set by ProxyConfiguration
+# in URLSession+Tailscale.swift:
 # iOS 17, macOS 14. Measured by building at each value, not assumed — see
 # TAILSCALE.md, "Deployment floors".
 #

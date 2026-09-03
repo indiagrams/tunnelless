@@ -205,8 +205,11 @@ jobs:
       # on the runner, and it exercises the exact "Option A" path README.md
       # tells adopters to use — so CI proves the documented happy path works.
       #
-      # The tag is DERIVED from the pinned submodule's go.mod, the same way
-      # build-tailscalekit.sh derives its build version. Do NOT hardcode a
+      # The tag is DERIVED from Package.swift (see the step body), which is what
+      # a SwiftPM consumer actually resolves; it is then cross-checked against
+      # tailscale/TAILSCALE_VERSION. It is NOT derived from the submodule's
+      # go.mod -- that was true before the resolution moved, and the stale claim
+      # outlived it. Do NOT hardcode a
       # version here: a hardcoded `tailscale.com@v1.96.4` in the build script
       # is exactly how an xcframework once shipped without its crash fix,
       # because the pin moved and the patch step silently took its

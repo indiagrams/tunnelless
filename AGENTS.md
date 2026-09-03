@@ -297,8 +297,10 @@ non-deterministic screenshots and an alpha channel Apple rejects.
 
 `.github/workflows/pr.yml` and `.github/workflows/release.yml` are both
 template-owned, and this fork edits both anyway — one `fetch
-TailscaleKit.xcframework` step each, plus `submodules: true` on `pr.yml`'s `app`
-job checkout.
+TailscaleKit.xcframework` step each. Neither carries `submodules: true`: the
+xcframework is downloaded prebuilt and the tag comes from `Package.swift`, so
+the submodule is not needed to build the app (`pr.yml`'s app job says so at its
+checkout).
 
 **Why it can't live anywhere else.** Neither workflow has a fork-owned seam.
 `pr.yml`'s `app` job goes straight from "regenerate Xcode project" to "build iOS
