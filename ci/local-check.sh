@@ -112,6 +112,11 @@ verify_helpers_in_sync
 step "preflight: shell scripts parse and pass shellcheck"
 ./ci/check-shell.sh
 
+# A patch carried against upstream with nothing watching it is how a fork ends up
+# maintaining a fix forever after upstream shipped one. See tailscale/patches/REGISTRY.
+step "preflight: every carried patch has a registry row"
+./ci/check-patch-registry.sh
+
 # Structural guard, not a build check: the macOS sign-in crash it prevents
 # compiles cleanly and fails only at runtime. See TAILSCALE.md #6.
 step "preflight: auth completion handler isolation"

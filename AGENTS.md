@@ -233,7 +233,7 @@ Consequences worth knowing:
 
 ### Accepted divergence: fork-owned preflight checks
 
-Six guards are fork-owned and wired into template-owned files, because a check
+Seven guards are fork-owned and wired into template-owned files, because a check
 nobody runs is not a check:
 
 - `ci/check-auth-isolation.sh` — asserts the `ASWebAuthenticationSession`
@@ -247,6 +247,16 @@ nobody runs is not a check:
   device, which `notes.txt` promises App Review it will. Needs `TS_DEMO_API_KEY`
   (an access token for the **demo** account, not your own); warns rather than
   fails when unset. Wired into `ci/local-check.sh`.
+- `ci/check-patch-registry.sh` — every patch carried against upstream has a row
+  in `tailscale/patches/REGISTRY`, and every row still describes something
+  carried. Covers **inline** patches too: the Bus-guard patch is applied against
+  the Go module cache by `build-tailscalekit.sh` with no `.patch` file, so it is
+  declared by a `# PATCH-REGISTRY: @id` marker, and the count of markers must
+  equal the count of module-cache paths the script derives — which is what makes
+  a second inline patch impossible to add unnoticed. Wired into `pr.yml` and
+  `ci/local-check.sh`. The registry is also read by
+  `tailscale-upstream-watch.yml`, which keeps only the part that needs the
+  network: has each fix merged **and** shipped.
 - `ci/check-platform-floors.sh` — every declared deployment target must be at or
   above the `minos` of the framework slice it loads, across `app/project.yml`,
   `app/Project.swift` and `Package.swift`. Reads the **simulator** slice as well

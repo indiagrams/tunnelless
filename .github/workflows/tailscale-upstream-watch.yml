@@ -96,17 +96,18 @@ jobs:
           # one leaves a patch carried for months, the other deletes a patch
           # whose fix is not in the pinned version.
           #
-          # fields: file|kind|repo|number
-          # 0002 (libtailscale#58, merged 61e8513) and 0003 (libtailscale#60,
-          # merged 8564835) were retired on 2026-08-31 by bumping the submodule
-          # past both and DELETING the patch files. They are gone from this list
-          # because they are gone from tailscale/patches/ — this registry
-          # describes what is carried now, not what was ever carried. The
-          # unwatched-patch guard below is what keeps the two in step.
-          PATCH_ROWS="
-          0001-tailscalekit-nslog-tracing.patch|manual||
-          @module-cache-bus-guard|release|tailscale|20985
-          "
+          # The registry is tailscale/patches/REGISTRY — one file, read here and
+          # by ci/check-patch-registry.sh. It used to be inlined right here, which
+          # meant the only completeness check lived in this weekly workflow and
+          # fired up to seven days after the PR that broke it (W-5). That check is
+          # now ci/check-patch-registry.sh and runs per-PR; this job keeps the
+          # part that genuinely needs the network — has each fix merged AND
+          # shipped — and simply reads the same file.
+          PATCH_ROWS="$(grep -vE '^[[:space:]]*(#|$)' tailscale/patches/REGISTRY)"
+          if [ -z "$PATCH_ROWS" ]; then
+            echo "::error::tailscale/patches/REGISTRY has no rows — this report would be empty and look fine."
+            exit 1
+          fi
 
           merged_state () {
             gh pr view "$2" --repo "tailscale/$1" --json state -q .state 2>/dev/null || echo UNKNOWN
@@ -189,18 +190,10 @@ jobs:
             echo "  $FILE ($KIND): present=$PRESENT -> $VERDICT"
           done <<< "$PATCH_ROWS"
 
-          # A carried patch with no row would be invisible here. Fail loudly.
-          for f in tailscale/patches/*.patch; do
-            [ -e "$f" ] || continue
-            b="$(basename "$f")"
-            case "$PATCH_ROWS" in
-              *"$b"*) ;;
-              *)
-                echo "::error::$b is carried but has no row in PATCH_ROWS. Add one, or it retires only when somebody remembers."
-                exit 1
-                ;;
-            esac
-          done
+          # Registry completeness is no longer checked here. ci/check-patch-registry.sh
+          # does it on every PR, in both directions, and also covers inline
+          # patches and stale rows — none of which the loop that used to live
+          # here could see (W-5).
 
           {
             echo "patch_rows<<ROWS_EOF"

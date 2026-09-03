@@ -92,6 +92,18 @@ jobs:
   # `--strict` treats warnings as errors so the signal is binary.
   # Excluded paths (Tuist Derived, fastlane SnapshotHelper, build outputs)
   # are configured in .swiftlint.yml itself, not here.
+  patch-registry:
+    name: patch registry
+    # Per-PR, which is the whole point of W-5: the completeness check used to
+    # live only in the weekly tailscale-upstream-watch run, so an unwatched
+    # patch merged and the complaint arrived up to seven days later.
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: every carried patch has a registry row
+        run: ./ci/check-patch-registry.sh
+
   shellcheck:
     name: shell scripts
     # ubuntu, not macos: needs git + bash + shellcheck and nothing from Xcode,
