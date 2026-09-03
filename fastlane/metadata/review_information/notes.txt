@@ -1,78 +1,79 @@
-IMPORTANT -- NO SEPARATE TAILSCALE APP REQUIRED
+NO SEPARATE TAILSCALE APP REQUIRED
 
-Tunnelless has Tailscale built in. Do NOT install the Tailscale app. The sign-in
-screen is account authentication only.
+Tunnelless has Tailscale built in. Do NOT install the Tailscale app; the sign-in
+screen is account authentication only. Tunnelless joins a Tailscale network from
+inside the app, with no VPN profile: only this app's connections use that
+network, the rest of the device is unaffected, and any VPN already running keeps
+working -- like an SSH client reaching a network the user already has.
 
-Tunnelless joins a Tailscale network from inside the app itself, with no VPN
-profile. Only this app's connections use that network; the rest of the device is
-unaffected and any VPN already running keeps working -- like an SSH client
-reaching a network the user already has.
+BUSINESS MODEL -- free, no in-app purchases, nothing is sold
+
+Tunnelless is free and open source (github.com/indiagrams/tunnelless): no in-app
+purchases, no subscriptions, no paid content, no locked features, no StoreKit
+code. Nothing is sold in or through it and it unlocks nothing previously
+purchased. Signing in authenticates the user to a Tailscale account they already
+hold with a third party; the app neither sells nor links to any Tailscale
+purchase, and works on Tailscale's free tier. There is no live multi-user
+service, so no participant limit applies -- one device connects to the user's own
+private network, and the peers listed are their own devices.
 
 HOW TO REVIEW -- NO ACCOUNT NEEDED
 
 Tap "Demo mode" on the main screen. With no sign-in and no authentication code,
-the app immediately shows its full interface against sample data: the device's
-private address (100.x.y.z) and local SOCKS5 proxy address; "Browse tailnet",
-listing each machine with its name, address, reachability and whether the path is
-direct or relayed; "Services", showing saved addresses; and "Sign out & reset",
-which leaves demo mode and clears local state.
+the app shows its full interface against sample data: the device's private
+address (100.x.y.z) and SOCKS5 proxy address; "Browse tailnet", listing machines
+with name, address, reachability and whether the path is direct or relayed;
+"Services"; and "Sign out & reset".
 
 Demo mode exists because the demo Tailscale account prompts for an emailed code a
-reviewer cannot receive. To review the real sign-in path instead, tap "Connect"
-and use the demo credentials above; only that path needs the code.
+reviewer cannot receive. To review the real sign-in path, tap "Connect" and use
+the demo credentials above; only that path needs the code.
 
 ACCOUNT DELETION -- the app creates no account
 
-There is no sign-up and no account creation. Signing in authenticates the user to
-a Tailscale account they already hold with a third party; the app never sees
-those credentials.
-
+There is no sign-up. Signing in authenticates the user to a Tailscale account
+they already hold with a third party; the app never sees those credentials.
 Sign-in creates two things, removed in two places:
 
 - On the device: a state directory holding the node identity and credentials.
-  "Sign out & reset" on the main screen deletes it, and all other local state, in
-  one action that needs no account.
-- On the user's own Tailscale network: a device entry in their Tailscale admin
-  console. The app cannot remove it -- tsnet exposes no logout or device-removal
-  call -- and it belongs to their own pre-existing account, which they may use
-  from other apps. It is removed in Tailscale's admin console.
+  "Sign out & reset" deletes it, and all other local state, in one action.
+- On the user's own Tailscale network: a device entry in their admin console.
+  The app cannot remove it -- tsnet exposes no logout or device-removal call --
+  and it belongs to their pre-existing account. It is removed in that console.
 
-VPN -- no VPN features, and no user information collected
+VPN -- no VPN features, no user information collected
 
 The app does not use NetworkExtension: no NEPacketTunnelProvider, no VPN profile,
-and it does not request the com.apple.developer.networking.networkextension
-entitlement. It never installs a system VPN, never prompts to allow a VPN
-configuration, and never routes or intercepts another app's traffic.
+no networking.networkextension entitlement. It never installs a system VPN, prompts
+for a VPN configuration, or routes another app's traffic.
 
-- What is collected: nothing. No analytics, tracking, telemetry or crash
-  reporting. This matches the privacy manifest and the "Data Not Collected"
-  App Privacy declaration.
-- For what purposes: not applicable, as nothing is collected.
-- Shared with third parties: no. We operate no servers and receive no user data.
-  Network state is stored only on the device and deleted on sign out.
+Collected: nothing -- no analytics, tracking, telemetry or crash reporting,
+matching the privacy manifest and the "Data Not Collected" declaration. Shared
+with third parties: no. We operate no servers and receive no user data. Network
+state is stored only on the device and deleted on sign out.
 
-SANDBOX (macOS only) -- com.apple.security.network.server is REQUIRED
+SANDBOX (macOS) -- com.apple.security.network.server is REQUIRED
 
 tsnet binds a listening socket on loopback: the SOCKS5 proxy this app connects
 through. App Sandbox requires network.server for any listening socket, including
 a loopback-only one. Measured on signed builds of one binary, entitlements only:
 
-  sandbox alone    -> tailscale_start() res=-1
+  sandbox alone -> tailscale_start() res=-1
   + network.client -> res=-1
   + network.server -> res=0
 
-Without it the node never starts and the app cannot connect. The app accepts no
-inbound connections from outside the device. The userspace WireGuard transport
-must also receive UDP from the user's own peers and from DERP relays.
+Without it the node never starts. The app accepts no inbound connections from
+outside the device. The userspace WireGuard transport must also receive UDP from
+the user's own peers and from DERP relays.
 
 ENCRYPTION
 
 All traffic uses WireGuard (ChaCha20-Poly1305 + Curve25519), open-source exempt
 encryption under EAR 740.17(b)(3)(iii). ITSAppUsesNonExemptEncryption is set to
-false in Info.plist -- the app uses only exempt encryption. No ERN required.
+false in Info.plist. No ERN required.
 
 Local network permission is requested on first connect, to reach devices on the
-same physical network directly rather than relaying. Declining it still works.
+same network directly rather than relaying. Declining it still works.
 
-Tailscale is a registered trademark of Tailscale Inc.; Tunnelless is not
-affiliated with or endorsed by Tailscale Inc.
+Tailscale is a trademark of Tailscale Inc.; Tunnelless is not affiliated with
+or endorsed by it.
