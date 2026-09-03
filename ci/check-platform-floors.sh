@@ -34,7 +34,7 @@
 # un-propagated for a week.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 XCF="vendor/TailscaleKit.xcframework"
 fail=0

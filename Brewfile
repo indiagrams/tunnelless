@@ -4,6 +4,7 @@
 # Build / project generation
 brew "xcodegen"        # app/project.yml → Tunnelless.xcodeproj
 cask "tuist"          # app/Project.swift → Tunnelless.xcodeproj (Tuist alternative; see #38)
+brew "shellcheck"      # ci/check-shell.sh — bash -n + shellcheck over every tracked *.sh
 brew "swiftlint"       # Swift lint
 brew "swiftformat"     # Swift auto-format (companion to swiftlint)
 brew "xcbeautify"      # nicer xcodebuild logs

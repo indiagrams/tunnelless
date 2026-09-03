@@ -32,7 +32,7 @@
 # said at all.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 NOTES="fastlane/metadata/review_information/notes.txt"
 fail=0; warn=0
