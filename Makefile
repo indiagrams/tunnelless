@@ -66,7 +66,7 @@ endif
 # baking a specific filesystem layout into the template was confusing forkers
 # and silently leaking per-fork keys (BUNDLE_ID etc.) across fork boundaries.
 
-.PHONY: all go bootstrap check check-ios check-macos check-sim build generate icons screenshots release-dryrun setup-github phase-checklist milestone-checklist help init doctor bootstrap-fork ship verify submit mint-local-certs clean-revoked-certs revoke-orphan-certs format format-check _check-bundle
+.PHONY: all go bootstrap check check-ios check-macos check-sim build generate icons screenshots release-dryrun setup-github phase-checklist milestone-checklist help init doctor bootstrap-fork ship verify submit mint-local-certs clean-revoked-certs revoke-orphan-certs format format-check _check-bundle _check-release-commit
 
 help:
 	@echo "Targets:"
@@ -162,8 +162,16 @@ doctor: _check-bundle
 bootstrap-fork: _check-bundle
 	@$(_BUNDLE) exec ruby bin/bootstrap-fork.rb
 
-ship: _check-bundle
+# FORK-OWNED PREREQUISITE (AGENTS.md "Accepted divergence: fork-owned preflight
+# checks"). The `v*` tag this pushes is ALSO the version SwiftPM consumers
+# resolve, and only main's required checks verify that the xcframework
+# Package.swift pins really has the floors Package.swift declares.
+# See .planning/v0.2-MILESTONE-AUDIT.md, BLOCKER-1.
+ship: _check-bundle _check-release-commit
 	@$(_BUNDLE) exec ruby bin/ship.rb
+
+_check-release-commit:
+	@ci/check-release-commit.sh
 
 verify: _check-bundle
 	@$(_BUNDLE) exec ruby bin/verify-testflight.rb

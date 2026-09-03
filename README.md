@@ -81,6 +81,21 @@ Two separate things share this repo's tags, which is worth knowing:
 | `0.1.0`, `0.2.0`, … | SwiftPM package versions — what `from:` resolves |
 | `tailscalekit-v1.102.3` | the xcframework binary release the package downloads |
 
+> **Pin with `from:`, not `exact:`, below `0.1.1`.** Package versions in the
+> `0.1.0` series (tags `0.1.0` and `v0.1.0+1`…`+7`) declare `iOS 17 / macOS 14`
+> while pinning an xcframework whose slices were built at **iOS 18.1 / macOS
+> 15.6**. SwiftPM resolves them happily — the checksum is genuine — and then
+> dyld refuses the framework at launch on iOS 17.0–18.0 and macOS 14.0–15.5.
+> `from: "0.1.0"` is safe: it resolves forward to `0.1.1`, whose declarations
+> match its binary. `exact: "0.1.0"`, `upToNextMinor(from: "0.1.0")`, and a
+> `Package.resolved` restored from that era are the affected cases.
+>
+> Fixed on `main` by publishing the lowered-floor framework
+> (`tailscalekit-v1.102.3+3`); the already-published `0.1.0` tags cannot be
+> retroactively corrected. `ci/check-release-commit.sh` now prevents a release
+> tag being cut from a commit whose floors were never checked against the asset
+> it pins.
+
 The package vends nothing but the prebuilt `TailscaleKit.xcframework`, pinned
 by SHA-256 — a moved or rewritten asset fails resolution rather than silently
 swapping the binary. `import TailscaleKit` and you're done; no Embed & Sign

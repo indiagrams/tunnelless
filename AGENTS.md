@@ -247,6 +247,18 @@ nobody runs is not a check:
   device, which `notes.txt` promises App Review it will. Needs `TS_DEMO_API_KEY`
   (an access token for the **demo** account, not your own); warns rather than
   fails when unset. Wired into `ci/local-check.sh`.
+- `ci/check-release-commit.sh` — refuses to cut a release tag on a commit that
+  `origin/main` does not contain. Wired into the `Makefile`'s `ship` target as a
+  prerequisite. The `v*` tag `make ship` pushes is simultaneously the app's
+  release marker and the version SwiftPM consumers resolve, and what they get is
+  decided by the **commit** — its declared platforms and its pinned xcframework
+  URL — not by anything in local `vendor/`. Only main's required `app (...)`
+  checks fetch the asset `Package.swift` pins and run
+  `ci/check-platform-floors.sh` against it, so only a commit contained in main
+  has had that invariant verified. Override with `ALLOW_UNMERGED_RELEASE=1`.
+  Added after the v0.2 audit found tags `0.1.0` and `v0.1.0+1`…`+7` declaring
+  iOS 17 / macOS 14 while pinning an 18.1 / 15.6 binary
+  (`.planning/v0.2-MILESTONE-AUDIT.md`, BLOCKER-1).
 
 `ci/check-app-icon.sh` is a different case, and the distinction is worth keeping
 straight: the **script is template-owned and byte-identical to apple-shipkit** —
