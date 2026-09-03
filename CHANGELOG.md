@@ -68,6 +68,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reaches users with the next app build. The declarations changing does not
   alter the `0.1.0` binaries currently in App Review.
 
+### Added
+
+- **`ci/check-shell.sh` — `bash -n` + ShellCheck over every tracked shell script, on every PR.** This repo runs on shell guards: `check-platform-floors.sh`, `check-review-notes.sh`, `check-release-commit.sh`, `check-demo-account.sh`, `verify-floor-runtime.sh`, `build-tailscalekit.sh`, `validate-xcframework.sh`. **None of them was ever linted, and nothing checked that any of them parses.** CI builds the app; it does not execute the ship path or source the guards, so a PR that broke one outright would merge green — closing the v0.2 audit's "no shellcheck / bash -n anywhere" item.
+
+  Seven warning-level findings on the first run, all fixed:
+
+  | code | where | why it matters |
+  |---|---|---|
+  | SC2164 ×6 | `check-app-icon.sh`, `check-demo-account.sh`, `check-platform-floors.sh`, `check-release-commit.sh`, `check-review-notes.sh`, `verify-floor-runtime.sh` | `cd "$(dirname "$0")/.."` with no `\|\| exit`. **Every one is a guard.** A failed `cd` means the script keeps running in the wrong directory and then checks — and passes — files that are not the ones it exists to check. That is the fail-open mode this repo has already been bitten by twice |
+  | SC2046 ×1 | `ci/local-release-check.sh` | unquoted `$($PATCH_MACOS_PLIST && echo "" \|\| echo …)` in the macOS archive invocation. Rewritten to the `${ARR[@]+"${ARR[@]}"}` idiom the two lines directly above it already use, so the "pass nothing" branch is zero arguments rather than one empty one |
+
+  Severity is capped at `warning`. The 21 remaining `info`/`style` findings are printed each run for visibility but never fail — dominated by SC2012 and SC1091, neither a defect here. The count differs between a local run and the runner because the ShellCheck versions differ, which is precisely why only `warning` is gated.
+
+  Authored **upstream** in apple-shipkit ([#285](https://github.com/indiagrams/apple-shipkit/pull/285), merged `0a47db1`) and cherry-picked, because `ci/check-shell.sh` is scaffolding every fork needs and `ci/lib/` is pinned byte-for-byte across repos by `ci/lib/SHA256SUMS` — it is covered here via `shellcheck -s bash` rather than exempted, so no downstream re-pin was needed. Mutation-verified upstream: a syntax break fails it, reintroducing the `cd` bug fails it, and removing `shellcheck` from `PATH` fails it rather than skipping. Wired as pr.yml's `shell scripts` job and as the first preflight in `ci/local-check.sh`; `shellcheck` added to the Brewfile.
+
 ### Fixed
 
 - **App Review was told the demo account was not required, on a record that still held one.** `deliver`'s `review_information()` strips every review field and omits the empty ones from its `appStoreReviewDetail` PATCH — correct, and what `fastlane/Fastfile`'s `" "` sentinel relies on. But it finishes with an `else` branch that **writes** `demo_account_required = false` rather than omitting it, deriving the flag from the two values it just decided not to send.

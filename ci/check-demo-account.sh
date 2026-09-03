@@ -34,7 +34,7 @@
 # it should not block a developer who has not set the token up yet.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 NOTES="fastlane/metadata/review_information/notes.txt"
 # Only enforce the claim if the notes actually make it.

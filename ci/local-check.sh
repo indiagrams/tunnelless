@@ -106,6 +106,12 @@ build_macos() {
 step "preflight: shared release helpers in sync"
 verify_helpers_in_sync
 
+# Every guard below this line is a shell script, and until now nothing checked
+# that any of them parses. A broken guard is worse than a missing one: it fails
+# open. See ci/check-shell.sh.
+step "preflight: shell scripts parse and pass shellcheck"
+./ci/check-shell.sh
+
 # Structural guard, not a build check: the macOS sign-in crash it prevents
 # compiles cleanly and fails only at runtime. See TAILSCALE.md #6.
 step "preflight: auth completion handler isolation"

@@ -31,7 +31,7 @@
 # appear in the shell history of whoever used it.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 if [ "${ALLOW_UNMERGED_RELEASE:-0}" = "1" ]; then
   echo "  WARN ALLOW_UNMERGED_RELEASE=1 -- shipping a commit origin/main may not contain."

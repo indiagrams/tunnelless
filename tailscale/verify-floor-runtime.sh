@@ -39,7 +39,7 @@
 # needs a real machine or VM running macOS 14–15.5. That remains structural.
 set -uo pipefail
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 REPO_ROOT="$PWD"
 WORK="$(mktemp -d)"
 KEEP=0
