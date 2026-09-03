@@ -90,18 +90,39 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             if [ "${{ inputs.force }}" = "true" ]; then
               echo "exists=replace" >> "$GITHUB_OUTPUT"
+              echo "build=yes" >> "$GITHUB_OUTPUT"
+              echo "publish=yes" >> "$GITHUB_OUTPUT"
               echo "$TAG exists; force=true, will replace the asset."
-            else
+            elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+              # The `paths:` filter above promises a rebuild when the build
+              # inputs change. Publishing over an existing tag would be wrong,
+              # but compiling NOTHING made that promise a lie: every push run
+              # since 2026-08-26 went green having built nothing, including the
+              # one that bumped the submodule and deleted two patches.
+              #
+              # This workflow is also the only place in CI where
+              # build-tailscalekit.sh and its patches actually run -- pr.yml and
+              # macos-sandbox-check.yml download a published asset instead. So
+              # on a push: build and validate, publish nothing.
               echo "exists=skip" >> "$GITHUB_OUTPUT"
-              echo "$TAG already published — nothing to do."
-              # Say it loudly. Every build step below is gated on this, so a
-              # skipping run goes green having compiled nothing — which is how a
-              # broken build path stayed invisible across four merges that
-              # changed what the framework would contain.
-              echo "::notice::$TAG already published: no build ran. This run verifies nothing about the build path. Dispatch with a build suffix to publish a rebuilt artifact."
+              echo "build=yes" >> "$GITHUB_OUTPUT"
+              echo "publish=no" >> "$GITHUB_OUTPUT"
+              echo "::notice::$TAG already published. Building to verify the build path; publishing nothing. Dispatch with a build suffix to publish a rebuilt artifact."
+            else
+              # Dispatch, tag exists, no force and no build suffix. Nothing to
+              # build and nothing to publish -- but say so loudly, because this
+              # is the shape that goes green having compiled nothing, and a
+              # green tick that verified nothing is how a broken build path
+              # stayed invisible across four merges.
+              echo "exists=skip" >> "$GITHUB_OUTPUT"
+              echo "build=no" >> "$GITHUB_OUTPUT"
+              echo "publish=no" >> "$GITHUB_OUTPUT"
+              echo "::notice::$TAG already published: no build ran. This run verifies nothing about the build path. Dispatch with a build suffix, or push a change under tailscale/, to exercise it."
             fi
           else
             echo "exists=create" >> "$GITHUB_OUTPUT"
+            echo "build=yes" >> "$GITHUB_OUTPUT"
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
             echo "Will publish $TAG"
           fi
 
@@ -118,13 +139,13 @@ jobs:
       # Deliberately not a hardcoded go-version: that would have to be bumped by
       # hand on every tsnet bump, and being wrong looks exactly like this did.
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        if: steps.tag.outputs.exists != 'skip'
+        if: steps.tag.outputs.build == 'yes'
         with:
           go-version-file: vendor/libtailscale/go.mod
           cache: false
 
       - name: build the xcframework
-        if: steps.tag.outputs.exists != 'skip'
+        if: steps.tag.outputs.build == 'yes'
         env:
           GOTOOLCHAIN: auto
         run: |
@@ -149,7 +170,7 @@ jobs:
           fi
 
       - name: upload the full build log
-        if: always() && steps.tag.outputs.exists != 'skip'
+        if: always() && steps.tag.outputs.build == 'yes'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: xcframework-build-log
@@ -160,11 +181,11 @@ jobs:
       # for. These fail at upload time, not build time, which is the whole
       # reason the validator exists.
       - name: validate before publishing
-        if: steps.tag.outputs.exists != 'skip'
+        if: steps.tag.outputs.build == 'yes'
         run: bash tailscale/validate-xcframework.sh
 
       - name: package
-        if: steps.tag.outputs.exists != 'skip'
+        if: steps.tag.outputs.publish == 'yes'
         run: |
           set -euo pipefail
           cd vendor
@@ -182,7 +203,7 @@ jobs:
           ls -lh "$RUNNER_TEMP/TailscaleKit.xcframework.zip"
 
       - name: publish
-        if: steps.tag.outputs.exists != 'skip'
+        if: steps.tag.outputs.publish == 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.tag.outputs.tag }}
