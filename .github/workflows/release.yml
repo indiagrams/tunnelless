@@ -178,6 +178,69 @@ jobs:
           sudo xcode-select -s "$XCODE_APP/Contents/Developer"
           xcodebuild -version
 
+      # FORK-OWNED STEP (see AGENTS.md "Accepted divergence: the TailscaleKit
+      # fetch step").
+      #
+      # vendor/TailscaleKit.xcframework is ~94 MB of Go-compiled slices and is
+      # gitignored (.gitignore), so without this step `fastlane release` dies at
+      # "There is no XCFramework found at .../vendor/TailscaleKit.xcframework".
+      # app/project.yml and app/Project.swift both reference it by path, for
+      # both the XcodeGen and Tuist generators.
+      #
+      # Placed BEFORE the keychain and certificate steps deliberately: minting
+      # release certs consumes an ASC certificate slot (see the revoke-orphan
+      # steps below), so a missing or corrupt asset must fail here rather than
+      # after that side effect.
+      #
+      # The tag is resolved from Package.swift -- what a SwiftPM consumer
+      # actually fetches -- and cross-checked against tailscale/TAILSCALE_VERSION
+      # so a release cannot be built against a different tsnet version than the
+      # repo pins. Do NOT hardcode a version here.
+      - name: fetch TailscaleKit.xcframework
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Forks publishing their own xcframework release can point this at
+          # their slug via a repo variable.
+          TSKIT_REPO: ${{ vars.TSKIT_RELEASE_REPO || 'indiagrams/tunnelless' }}
+        run: |
+          set -euo pipefail
+          TSNET_VERSION="$(tr -d '[:space:]' < tailscale/TAILSCALE_VERSION)"
+          if [ -z "$TSNET_VERSION" ]; then
+            echo "::error::tailscale/TAILSCALE_VERSION is empty or missing"
+            exit 1
+          fi
+          TAG="$(grep -oE 'download/tailscalekit-[^/]+/' Package.swift | head -1 | sed 's|download/||; s|/$||')"
+          if [ -z "$TAG" ]; then
+            echo "::error::could not resolve the xcframework tag from Package.swift"
+            exit 1
+          fi
+          case "$TAG" in
+            "tailscalekit-${TSNET_VERSION}"|"tailscalekit-${TSNET_VERSION}+"*) ;;
+            *)
+              echo "::error::Package.swift points at $TAG but tailscale/TAILSCALE_VERSION is $TSNET_VERSION."
+              echo "The release would be built against a different tsnet version than the repo pins."
+              exit 1
+              ;;
+          esac
+          echo "tailscale.com ${TSNET_VERSION} -> release ${TAG} in ${TSKIT_REPO} (from Package.swift)"
+          gh release download "$TAG" \
+            --repo "$TSKIT_REPO" \
+            --pattern 'TailscaleKit.xcframework.zip' \
+            --dir "$RUNNER_TEMP"
+          unzip -q "$RUNNER_TEMP/TailscaleKit.xcframework.zip" -d vendor/
+          # Same 6 checks the build script's callers run -- a corrupted or
+          # mis-published asset should not surface as a confusing compile error
+          # minutes later, mid-signing.
+          bash tailscale/validate-xcframework.sh
+
+      # FORK-OWNED STEP. The ship path's own floor gate. pr.yml runs this right
+      # after its fetch; the release path had no equivalent, so a framework
+      # whose slices sit ABOVE the floors Package.swift and the app declare
+      # could be signed, uploaded, and then refused by dyld at launch. Cheap
+      # here; expensive after App Review.
+      - name: check declared platform floors against the slices
+        run: ./ci/check-platform-floors.sh
+
       - name: Set up Ruby + bundler cache
         uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
         with:
