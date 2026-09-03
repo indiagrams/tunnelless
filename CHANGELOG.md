@@ -68,6 +68,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reaches users with the next app build. The declarations changing does not
   alter the `0.1.0` binaries currently in App Review.
 
+### Fixed
+
+- **The floor check never read the simulator slice, and read only the first arch of a fat one (W-12).** `ci/check-platform-floors.sh` compared the three declaration sites against `ios-arm64` and `macos-arm64` only. Two holes followed from that.
+
+  The simulator slice went unchecked entirely — and it is the slice `tailscale/verify-floor-runtime.sh` loads to *prove* the iOS floor is real, by launching the app on an old simulator. So the structural half of the floor evidence and the runtime half never overlapped: the proof was run against a binary whose floor nothing had verified, and taken to establish the floor of the device binary. That is the same trap REQ-V03-4 already fell into once, when a runtime proof against `+2` was assumed to hold for `+3` and did not, because the two floors came from different mechanisms.
+
+  Separately, `slice_minos` stopped at the first `LC_BUILD_VERSION` (`awk … exit`). The simulator slice is **fat** — x86_64 and arm64, each with its own load command — so a correct first arch would have hidden a wrong second one.
+
+  Now reads every arch of every slice, compares the iOS declarations against whichever of the device/simulator floors is higher, and **fails outright if the device and simulator slices disagree**, since a runtime proof cannot transfer between them. A missing or unreadable simulator slice fails rather than skipping, for the same reason the missing-xcframework case already did.
+
+  Mutation-verified against a shimmed `otool`: a simulator slice built higher than the device slice fails; a fat slice whose **second** arch alone is wrong fails — the case the old `exit` would have passed.
+
+- **Neither framework guard ran on the path that actually ships (W-8).** `tailscale/validate-xcframework.sh` and `ci/check-platform-floors.sh` ran in `pr.yml`, `release.yml`, `tailscale-bump.yml` and `release-xcframework.yml` — but not in `ci/local-release-check.sh`. That is backwards: `release.yml` has never run (0 runs, ever), while the local `make ship` path this script implements produced **every release the project has published**. The guards covered the path nobody used and skipped the one everybody used.
+
+  Both now run first in that script, before `xcodegen` and before any archive — same ordering rationale as fetching the asset before minting certificates in [#67](https://github.com/indiagrams/tunnelless/pull/67), so a malformed framework or a floor mismatch fails in seconds rather than after a full signed build. Verified by running the real ship path far enough to execute both.
+
 ### Added
 
 - **`ci/check-shell.sh` — `bash -n` + ShellCheck over every tracked shell script, on every PR.** This repo runs on shell guards: `check-platform-floors.sh`, `check-review-notes.sh`, `check-release-commit.sh`, `check-demo-account.sh`, `verify-floor-runtime.sh`, `build-tailscalekit.sh`, `validate-xcframework.sh`. **None of them was ever linted, and nothing checked that any of them parses.** CI builds the app; it does not execute the ship path or source the guards, so a PR that broke one outright would merge green — closing the v0.2 audit's "no shellcheck / bash -n anywhere" item.
