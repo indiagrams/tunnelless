@@ -105,6 +105,28 @@ if [ -n "$claimed" ]; then
   fi
 fi
 
+# 6. Business model / Guideline 2.1(b). An app that embeds a third-party network
+#    service while selling nothing is the exact profile App Review queries: "it
+#    appears the app may access or include paid digital content or services, and
+#    we want to understand your business model", followed by five questions.
+#    iOS 0.1.0 was held under 2.1(b) on 2026-09-01. It cost a written reply AND a
+#    resubmit -- no code change, no new build, just an answer that could have sat
+#    in this file from the first submission. Which is this script's whole thesis.
+if found "tsnet\|TailscaleKit" app/ Package.swift 2>/dev/null \
+   && ! grep -rqi "StoreKit\|SKPayment\|SKProduct" app/ 2>/dev/null; then
+  if covers "in-app purchase" || covers "business model"; then
+    echo "  ok   third-party service + no IAP -> business model stated in notes"
+  else
+    echo "  FAIL the app embeds a third-party network service and contains no" >&2
+    echo "       StoreKit. That is exactly the profile App Review queries under" >&2
+    echo "       Guideline 2.1(b) — 'we want to understand your business model'." >&2
+    echo "       State it in notes.txt: free, no IAP, nothing sold, the user" >&2
+    echo "       brings an account they already hold with a third party." >&2
+    echo "       Asked on 2026-09-01; cost a reply plus a resubmit." >&2
+    fail=1
+  fi
+fi
+
 # 5. Usage-description permissions a reviewer will see prompted.
 for key in NSCameraUsageDescription NSMicrophoneUsageDescription \
            NSLocationWhenInUseUsageDescription NSLocalNetworkUsageDescription; do
