@@ -48,6 +48,10 @@ require_relative "lib/review_detail"
 
 config = Bootstrap::Config.load!
 config.validate!
+# Same wrong-account guard as bin/ship.rb, at the same earliest point: `submit`
+# mutates a live App Store listing, so authenticating as the wrong account is
+# even less recoverable here than for a TestFlight upload.
+Bootstrap.assert_no_env_file_conflicts!(config)
 
 # ─── Resolve effective platforms (PLATFORMS env wins over config) ────────────
 raw_platforms = ENV["PLATFORMS"].to_s.strip.empty? ? config.platforms.join(",") : ENV["PLATFORMS"]
@@ -105,12 +109,12 @@ end
 # ─── Read marketing version for the preflight summary ────────────────────────
 def read_marketing_version
   if File.exist?("app/project.yml")
-    if (m = File.read("app/project.yml").match(/^\s*MARKETING_VERSION\s*:\s*["']?([^"'\s#]+)/))
+    if (m = File.read("app/project.yml", encoding: "UTF-8").match(/^\s*MARKETING_VERSION\s*:\s*["']?([^"'\s#]+)/))
       return m[1]
     end
   end
   if File.exist?("app/Project.swift")
-    if (m = File.read("app/Project.swift").match(/"MARKETING_VERSION"\s*:\s*"([^"]+)"/))
+    if (m = File.read("app/Project.swift", encoding: "UTF-8").match(/"MARKETING_VERSION"\s*:\s*"([^"]+)"/))
       return m[1]
     end
   end
