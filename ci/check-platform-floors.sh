@@ -2,6 +2,28 @@
 # ci/check-platform-floors.sh — every declared platform floor must be >= the
 # `minos` of the framework slice it will load.
 #
+# WHY THIS EXISTS ALONGSIDE THE KIT'S ci/check-embedded-floors.sh
+#
+# They are not duplicates, and this one is not the upstreamed version of that
+# one. They read different things at different times:
+#
+#   kit  check-embedded-floors.sh  a BUILT .app, post-build. Compares the minos
+#                                  of each embedded framework against the app's
+#                                  declared deployment target.
+#   this check-platform-floors.sh  the MANIFESTS and the xcframework slices,
+#                                  pre-build: app/project.yml, app/Project.swift
+#                                  AND Package.swift, across the simulator slice
+#                                  and every arch of a fat one.
+#
+# Measured 2026-09-08, both run against the same built app. Planting
+# `.iOS("16.0")` in Package.swift against a 17.0 slice: this guard exits 1, the
+# kit's exits 0. It cannot do otherwise — Package.swift is not inside a built
+# bundle, and a device build carries no simulator slice to compare.
+#
+# That surface is the one that matters most here: Package.swift is what SwiftPM
+# adopters resolve, so a wrong floor there ships a broken promise to consumers
+# who never build this app at all. Both guards run; neither replaces the other.
+#
 # WHY THIS EXISTS
 #
 # Declaring a deployment target lower than the binary you embed is legal, builds
