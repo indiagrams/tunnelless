@@ -192,7 +192,7 @@ ok "check-platform-floors.sh passed"
 
 step "xcodegen generate"
 ( cd app && xcodegen generate >/dev/null )
-ok "Tunnelless.xcodeproj regenerated"
+ok "App.xcodeproj regenerated"
 
 mkdir -p "$REPO_ROOT/build"
 
@@ -287,7 +287,7 @@ fi
 if $SIGN_IOS; then
   step "iOS archive (signed)"
 
-  IOS_ARCHIVE="$WORK_DIR/Tunnelless-iOS.xcarchive"
+  IOS_ARCHIVE="$WORK_DIR/App-iOS.xcarchive"
   IOS_EXPORT="$WORK_DIR/export-ios"
   EXPORT_OPTS="$WORK_DIR/ExportOptions-iOS.plist"
 
@@ -313,8 +313,8 @@ if $SIGN_IOS; then
   fi
 
   xcodebuild archive \
-    -project app/Tunnelless.xcodeproj \
-    -scheme Tunnelless-iOS \
+    -project app/App.xcodeproj \
+    -scheme App-iOS \
     -configuration Release \
     -destination 'generic/platform=iOS' \
     -archivePath "$IOS_ARCHIVE" \
@@ -352,7 +352,7 @@ fi
 if $SIGN_MACOS; then
   step "macOS archive (signed)"
 
-  MACOS_ARCHIVE="$WORK_DIR/Tunnelless-macOS.xcarchive"
+  MACOS_ARCHIVE="$WORK_DIR/App-macOS.xcarchive"
   MACOS_EXPORT="$WORK_DIR/export-macos"
   EXPORT_OPTS_MACOS="$WORK_DIR/ExportOptions-macOS-AppStore.plist"
 
@@ -395,8 +395,8 @@ if $SIGN_MACOS; then
   $PATCH_MACOS_PLIST || MACOS_SIGN_STYLE_ARGS=(CODE_SIGN_STYLE=Automatic)
 
   xcodebuild archive \
-    -project app/Tunnelless.xcodeproj \
-    -scheme Tunnelless-macOS \
+    -project app/App.xcodeproj \
+    -scheme App-macOS \
     -configuration Release \
     -destination 'generic/platform=macOS' \
     -archivePath "$MACOS_ARCHIVE" \

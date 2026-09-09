@@ -132,10 +132,10 @@ echo "  using runtime:           iOS $RUNTIME_VER (discriminates: >= $DECLARED, 
 
 # ─── Build the app for the simulator ─────────────────────────────────────────
 echo
-echo "==> Building Tunnelless-iOS for the simulator"
+echo "==> Building App-iOS for the simulator"
 (cd app && xcodegen generate >/dev/null 2>&1)
 xcodebuild build \
-  -project app/Tunnelless.xcodeproj -scheme Tunnelless-iOS \
+  -project app/App.xcodeproj -scheme App-iOS \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \
   -derivedDataPath "$WORK/dd" CODE_SIGNING_ALLOWED=NO \
   > "$WORK/build.log" 2>&1 || { tail -30 "$WORK/build.log"; fail "simulator build failed."; }

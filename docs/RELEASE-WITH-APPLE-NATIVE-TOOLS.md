@@ -93,7 +93,7 @@ This template uses Xcode 15+; you're already covered.
 The conventions below assume:
 
 - Bundle ID: `com.indiagram.tunnelless` (substitute yours)
-- Scheme: `Tunnelless-iOS` / `Tunnelless-macOS`
+- Scheme: `App-iOS` / `App-macOS`
 - Team ID: read from `.bootstrap.env` as `FASTLANE_TEAM_ID` (set by `make init` + your edits)
 - Build artifacts: `build/Tunnelless-<version>.ipa`, `build/Tunnelless-<version>.pkg`
 - ASC API key path: `~/.appstoreconnect/AuthKey_<KEYID>.p8` (per
@@ -123,11 +123,11 @@ TEAM_ID="$FASTLANE_TEAM_ID"
 ( cd app && xcodegen generate )
 
 WORK_DIR="$(mktemp -d)"
-IOS_ARCHIVE="$WORK_DIR/Tunnelless-iOS.xcarchive"
+IOS_ARCHIVE="$WORK_DIR/App-iOS.xcarchive"
 
 xcodebuild archive \
-  -project app/Tunnelless.xcodeproj \
-  -scheme Tunnelless-iOS \
+  -project app/App.xcodeproj \
+  -scheme App-iOS \
   -configuration Release \
   -destination 'generic/platform=iOS' \
   -archivePath "$IOS_ARCHIVE" \
@@ -290,11 +290,11 @@ between export and upload.
 ### 1. Archive
 
 ```bash
-MACOS_ARCHIVE="$WORK_DIR/Tunnelless-macOS.xcarchive"
+MACOS_ARCHIVE="$WORK_DIR/App-macOS.xcarchive"
 
 xcodebuild archive \
-  -project app/Tunnelless.xcodeproj \
-  -scheme Tunnelless-macOS \
+  -project app/App.xcodeproj \
+  -scheme App-macOS \
   -configuration Release \
   -destination 'generic/platform=macOS' \
   -archivePath "$MACOS_ARCHIVE" \

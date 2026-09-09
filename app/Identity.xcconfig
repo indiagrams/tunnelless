@@ -1,0 +1,46 @@
+// app/Identity.xcconfig — the single tracked identity source of truth.
+//
+// Written by bin/migrate-identity.rb from this fork's own RESOLVED build
+// settings (xcodebuild -showBuildSettings), not from its manifests: a literal
+// baked into a generated project shadows the manifest that was supposed to
+// produce it, and the build is what ships.
+//
+// Editing the four values below rebrands the app on both platforms. XcodeGen
+// (configFiles:), Tuist (.settings(configurations:)) and xcodebuild all read
+// this file natively — there is no parser in between, which is what lets
+// xcodebuild -showBuildSettings report these resolved values directly.
+//
+// Format rules: values are UNQUOTED (quotes would land in the plist as
+// literal characters); comments are a double slash; the directive at the
+// bottom is a directive, not a comment.
+
+// Feeds PRODUCT_BUNDLE_IDENTIFIER on both app targets (one shared bundle id).
+BUNDLE_ID        = com.indiagram.tunnelless
+
+// Feeds PRODUCT_NAME on the two APP targets only, through a per-target
+// PRODUCT_NAME = $(APP_PRODUCT_NAME) in each manifest. Deliberately NOT a
+// bare project-level PRODUCT_NAME: that leaks into every target, including
+// the test bundles, and the two generators then disagree.
+//
+// BEFORE THIS MIGRATION this tree resolved Tunnelless on iOS and
+// Tunnelless on macOS, because nothing set PRODUCT_NAME and Xcode
+// defaulted it to each target's own name. It now resolves one value on both
+// platforms, so the built bundle's filename and executable name change on at
+// least one platform. See docs/MIGRATING-FROM-RENAME.md.
+APP_PRODUCT_NAME = Tunnelless
+
+// Feeds CFBundleDisplayName — the name under the icon — on both platforms.
+DISPLAY_NAME     = Tunnelless
+
+// Feeds NSHumanReadableCopyright. Set in both manifests' plist blocks rather
+// than through an INFOPLIST_KEY_ build setting: that form reaches the bundle
+// only under GENERATE_INFOPLIST_FILE = YES, which app targets carrying their
+// own Info.plist do not set (observed: the setting resolved, the built iOS
+// plist had no key).
+COPYRIGHT        = Copyright © 2026 Indiagram LLC. All rights reserved.
+
+// The Apple Team ID (DEVELOPMENT_TEAM) lives in app/Local.xcconfig, which is
+// gitignored and is never tracked. On a fresh clone the include below is
+// silent and DEVELOPMENT_TEAM is undefined — not empty, undefined: no line
+// for it appears in -showBuildSettings at all.
+#include? "Local.xcconfig"

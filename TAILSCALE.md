@@ -429,11 +429,11 @@ or the pinned submodule.
 To reproduce it locally:
 
 ```bash
-xcodebuild build -project app/Tunnelless.xcodeproj -scheme Tunnelless-macOS \
+xcodebuild build -project app/App.xcodeproj -scheme App-macOS \
   -configuration Debug -destination 'platform=macOS' -derivedDataPath /tmp/dd-mac \
   CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES
 
-/tmp/dd-mac/Build/Products/Debug/Tunnelless-macOS.app/Contents/MacOS/Tunnelless-macOS \
+/tmp/dd-mac/Build/Products/Debug/App-macOS.app/Contents/MacOS/App-macOS \
   -autoconnect 2>&1 | grep tailscale_start
 # want: "... tailscale_start sd=... returned res=0"
 ```
