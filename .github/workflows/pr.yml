@@ -88,6 +88,16 @@ jobs:
           echo "Resolved matrix:"
           echo "$matrix" | jq .
 
+      # Every `app (…)` cell below `needs:` this job, so one plain-text run
+      # here gates both generators and all platforms. It has to live outside
+      # the cells: XcodeGen runs the same script through project.yml's
+      # preGenCommand, but Tuist has no pre-generation hook and a guard in
+      # Project.swift is skipped whenever the manifest cache is warm — so a
+      # missing identity key would otherwise generate a project with an empty
+      # CFBundleIdentifier on the Tuist cells and exit 0 doing it.
+      - name: identity preflight
+        run: bash ci/check-identity.sh
+
   # Lints all Swift sources against .swiftlint.yml at the repo root.
   # `--strict` treats warnings as errors so the signal is binary.
   # Excluded paths (Tuist Derived, fastlane SnapshotHelper, build outputs)
@@ -106,17 +116,17 @@ jobs:
 
   shellcheck:
     name: shell scripts
-    # ubuntu, not macos: needs git + bash + shellcheck and nothing from Xcode,
-    # and shellcheck is preinstalled on the ubuntu image. No paths filter -- a
-    # shell script is reachable from almost any change here, and it takes
-    # seconds. This repo runs on shell guards; none of them were ever linted.
+    # ubuntu, not macos: this needs git + bash + shellcheck and nothing from
+    # Xcode, and shellcheck is preinstalled on the ubuntu image. Runs on every
+    # PR rather than behind a paths filter -- a shell script is reachable from
+    # almost any change here, and the job takes seconds.
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: shellcheck present
-        # Preinstalled today; install rather than assume, so a future image
-        # change downgrades to a slower job and not a silent skip.
+        # Preinstalled on ubuntu-latest today; install rather than assume, so a
+        # future image change downgrades to a slower job and not a silent skip.
         run: command -v shellcheck >/dev/null || sudo apt-get install -y shellcheck
       - name: bash -n + shellcheck
         run: ./ci/check-shell.sh
@@ -320,7 +330,7 @@ jobs:
       # Tuist forks live with their app/Project.swift manifest checked in
       # alongside app/project.yml. switch-to-tuist.sh stages the right one
       # (deletes project.yml, keeps Project.swift) so the subsequent
-      # `tuist generate` produces the same ${APP_NAME}.xcodeproj layout the
+      # `tuist generate` produces the same app/App.xcodeproj layout the
       # xcodegen path produces from project.yml.
       - name: switch fork to Tuist
         if: matrix.generator == 'tuist'
@@ -381,16 +391,35 @@ jobs:
         timeout-minutes: 5   # typical ~40s; 5m absorbs cold caches
         run: |
           set -o pipefail
+          # -derivedDataPath so the next step knows where the .app landed;
+          # without it the product is somewhere under a hashed DerivedData dir.
           xcodebuild build \
-            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-iOS" \
+            -project app/App.xcodeproj \
+            -scheme App-iOS \
             -configuration Debug \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/dd-ios" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             2>&1 | xcbeautify --renderer github-actions
+
+      # Runs on the BUILT app, which is why it lives here rather than in the
+      # lint job: the question is what the bundle actually embeds, and only a
+      # build can answer it. On a fork that embeds no frameworks this reports
+      # "nothing to compare" and passes — out loud, so a green result is
+      # distinguishable from a check that never looked.
+      - name: check embedded framework floors
+        if: matrix.platform == 'ios-device'
+        run: |
+          set -euo pipefail
+          APP="$(find "$RUNNER_TEMP/dd-ios/Build/Products" -maxdepth 2 -name '*.app' | head -1)"
+          if [ -z "$APP" ]; then
+            echo "::error::no .app under $RUNNER_TEMP/dd-ios/Build/Products"
+            exit 1
+          fi
+          bash ci/check-embedded-floors.sh "$APP"
 
       - name: test iOS Simulator (unsigned)
         if: matrix.platform == 'ios-sim'
@@ -398,13 +427,15 @@ jobs:
           set -o pipefail
           # `xcodebuild test` runs the scheme's Test action, which the
           # generator manifest (app/project.yml or app/Project.swift) wires
-          # to <APP_NAME>UITests + <APP_NAME>Tests (these are renamed at fork creation
-          # by bin/rename.sh — the literal names in apple-shipkit are TailnetDemoUITests
-          # + TailnetDemoTests). Test action requires a concrete simulator destination
-          # (generic/* doesn't work).
+          # to AppUITests + AppTests. The project path and scheme are
+          # constants — the app's identity lives in app/Identity.xcconfig and
+          # nothing here has to resolve it, so there is no repository variable
+          # to set and no fallback to mis-resolve on a renamed fork. Test
+          # action requires a concrete simulator destination (generic/*
+          # doesn't work).
           xcodebuild test \
-            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-iOS" \
+            -project app/App.xcodeproj \
+            -scheme App-iOS \
             -configuration Debug \
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
@@ -420,8 +451,8 @@ jobs:
           # macOS test destination is bare `platform=macOS` — `xcodebuild
           # test` doesn't accept `generic/platform=macOS`.
           xcodebuild test \
-            -project "app/${{ vars.APP_NAME || 'TailnetDemo' }}.xcodeproj" \
-            -scheme "${{ vars.APP_NAME || 'TailnetDemo' }}-macOS" \
+            -project app/App.xcodeproj \
+            -scheme App-macOS \
             -configuration Debug \
             -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" \
