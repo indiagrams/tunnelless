@@ -22,11 +22,30 @@ BUNDLE_ID        = com.indiagram.tunnelless
 // bare project-level PRODUCT_NAME: that leaks into every target, including
 // the test bundles, and the two generators then disagree.
 //
-// BEFORE THIS MIGRATION this tree resolved Tunnelless on iOS and
-// Tunnelless on macOS, because nothing set PRODUCT_NAME and Xcode
-// defaulted it to each target's own name. It now resolves one value on both
-// platforms, so the built bundle's filename and executable name change on at
-// least one platform. See docs/MIGRATING-FROM-RENAME.md.
+// CORRECTED 2026-09-08. migrate-identity.rb writes a fixed paragraph here that
+// assumes the pre-migration tree left PRODUCT_NAME unset; that is not what this
+// fork did, and the generated text was false the moment it was written. This is
+// apple-shipkit#295 — the same unconditional sentence it prints to the console,
+// except that here it lands in a tracked file. Replaced with what was measured:
+//
+// BEFORE THIS MIGRATION both app targets PINNED PRODUCT_NAME to the literal
+// `Tunnelless`, in app/project.yml and app/Project.swift alike. Not an
+// oversight: App Review rejected `Tunnelless-macOS` under Guideline 5.2.5
+// (Legal - Intellectual Property, terms for macOS in the displayed name), and
+// pinning is the only remedy Apple accepts. So the tree already resolved ONE
+// value on both platforms.
+//
+// The migration changed the SPELLING — literal `Tunnelless` became the
+// reference `$(APP_PRODUCT_NAME)` — and not the resolved value. The built
+// bundle filename and executable name DID NOT CHANGE. Measured, not assumed:
+// Release builds of both platforms before and after, four keys read with
+// `plutil -extract` off the built Info.plists, all four identical
+// (CFBundleName / CFBundleExecutable / CFBundleDisplayName = Tunnelless,
+// CFBundleIdentifier = com.indiagram.tunnelless).
+//
+// That is why this migration shipped against two live App Store versions
+// without an App Store consequence. See docs/MIGRATING-FROM-RENAME.md for the
+// general case, in which the change is real.
 APP_PRODUCT_NAME = Tunnelless
 
 // Feeds CFBundleDisplayName — the name under the icon — on both platforms.
