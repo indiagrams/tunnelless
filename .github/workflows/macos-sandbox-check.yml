@@ -55,7 +55,10 @@ jobs:
       HOMEBREW_NO_AUTO_UPDATE: "1"
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_ANALYTICS: "1"
-      APP_NAME: ${{ vars.APP_NAME || 'TailnetDemo' }}
+      # Project path and scheme are constants since #289. The built bundle is
+      # NOT named after the scheme: it follows PRODUCT_NAME, i.e.
+      # APP_PRODUCT_NAME from app/Identity.xcconfig. Conflating the two is
+      # apple-shipkit#294. PRODUCT_NAME is resolved from that file below.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -109,6 +112,18 @@ jobs:
         working-directory: app
         run: xcodegen generate
 
+      # The bundle and the executable are named after PRODUCT_NAME, which
+      # resolves from app/Identity.xcconfig (APP_PRODUCT_NAME) — NOT after the
+      # scheme, whose prefix is the constant "App". Reading the scheme prefix
+      # instead is apple-shipkit#294; this file resolves the real value.
+      - name: resolve product name
+        run: |
+          set -euo pipefail
+          PRODUCT_NAME="$(awk -F'=' '/^[[:space:]]*APP_PRODUCT_NAME[[:space:]]*=/ {gsub(/[[:space:]]/,"",$2); print $2; exit}' app/Identity.xcconfig)"
+          [ -n "$PRODUCT_NAME" ] || { echo "::error::APP_PRODUCT_NAME not found in app/Identity.xcconfig"; exit 1; }
+          echo "PRODUCT_NAME=$PRODUCT_NAME" >> "$GITHUB_ENV"
+          echo "product name: $PRODUCT_NAME"
+
       # CODE_SIGN_IDENTITY="-" is ad-hoc. The point is not a valid Apple
       # identity, it is that a signature exists at all — that is what makes
       # the kernel enforce the entitlements below.
@@ -116,8 +131,8 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build \
-            -project "app/${APP_NAME}.xcodeproj" \
-            -scheme "${APP_NAME}-macOS" \
+            -project app/App.xcodeproj \
+            -scheme App-macOS \
             -configuration Debug \
             -destination 'platform=macOS' \
             -derivedDataPath "$RUNNER_TEMP/dd-mac" \
@@ -129,7 +144,7 @@ jobs:
       - name: assert the sandbox entitlements are actually embedded
         run: |
           set -euo pipefail
-          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}.app"
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${PRODUCT_NAME}.app"
           ENTS="$(codesign -d --entitlements - --xml "$APP" 2>/dev/null | plutil -convert xml1 -o - -)"
           echo "$ENTS"
           fail=0
@@ -148,7 +163,7 @@ jobs:
       - name: launch and assert tailscale_start succeeds
         run: |
           set -uo pipefail
-          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${APP_NAME}.app"
+          APP="$RUNNER_TEMP/dd-mac/Build/Products/Debug/${PRODUCT_NAME}.app"
           LOG="$RUNNER_TEMP/launch.log"
 
           # -autoconnect makes the app start the node without UI interaction.
@@ -158,7 +173,7 @@ jobs:
           # Deliberately not using `timeout`: that is GNU coreutils and is not
           # guaranteed on a macOS runner. Polling also returns as soon as the
           # result line lands instead of always burning the full budget.
-          "$APP/Contents/MacOS/${APP_NAME}" -autoconnect > "$LOG" 2>&1 &
+          "$APP/Contents/MacOS/${PRODUCT_NAME}" -autoconnect > "$LOG" 2>&1 &
           APP_PID=$!
           for _ in $(seq 1 90); do
             if grep -q 'tailscale_start .* returned res=' "$LOG" 2>/dev/null; then

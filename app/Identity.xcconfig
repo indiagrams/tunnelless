@@ -1,0 +1,65 @@
+// app/Identity.xcconfig — the single tracked identity source of truth.
+//
+// Written by bin/migrate-identity.rb from this fork's own RESOLVED build
+// settings (xcodebuild -showBuildSettings), not from its manifests: a literal
+// baked into a generated project shadows the manifest that was supposed to
+// produce it, and the build is what ships.
+//
+// Editing the four values below rebrands the app on both platforms. XcodeGen
+// (configFiles:), Tuist (.settings(configurations:)) and xcodebuild all read
+// this file natively — there is no parser in between, which is what lets
+// xcodebuild -showBuildSettings report these resolved values directly.
+//
+// Format rules: values are UNQUOTED (quotes would land in the plist as
+// literal characters); comments are a double slash; the directive at the
+// bottom is a directive, not a comment.
+
+// Feeds PRODUCT_BUNDLE_IDENTIFIER on both app targets (one shared bundle id).
+BUNDLE_ID        = com.indiagram.tunnelless
+
+// Feeds PRODUCT_NAME on the two APP targets only, through a per-target
+// PRODUCT_NAME = $(APP_PRODUCT_NAME) in each manifest. Deliberately NOT a
+// bare project-level PRODUCT_NAME: that leaks into every target, including
+// the test bundles, and the two generators then disagree.
+//
+// CORRECTED 2026-09-08. migrate-identity.rb writes a fixed paragraph here that
+// assumes the pre-migration tree left PRODUCT_NAME unset; that is not what this
+// fork did, and the generated text was false the moment it was written. This is
+// apple-shipkit#295 — the same unconditional sentence it prints to the console,
+// except that here it lands in a tracked file. Replaced with what was measured:
+//
+// BEFORE THIS MIGRATION both app targets PINNED PRODUCT_NAME to the literal
+// `Tunnelless`, in app/project.yml and app/Project.swift alike. Not an
+// oversight: App Review rejected `Tunnelless-macOS` under Guideline 5.2.5
+// (Legal - Intellectual Property, terms for macOS in the displayed name), and
+// pinning is the only remedy Apple accepts. So the tree already resolved ONE
+// value on both platforms.
+//
+// The migration changed the SPELLING — literal `Tunnelless` became the
+// reference `$(APP_PRODUCT_NAME)` — and not the resolved value. The built
+// bundle filename and executable name DID NOT CHANGE. Measured, not assumed:
+// Release builds of both platforms before and after, four keys read with
+// `plutil -extract` off the built Info.plists, all four identical
+// (CFBundleName / CFBundleExecutable / CFBundleDisplayName = Tunnelless,
+// CFBundleIdentifier = com.indiagram.tunnelless).
+//
+// That is why this migration shipped against two live App Store versions
+// without an App Store consequence. See docs/MIGRATING-FROM-RENAME.md for the
+// general case, in which the change is real.
+APP_PRODUCT_NAME = Tunnelless
+
+// Feeds CFBundleDisplayName — the name under the icon — on both platforms.
+DISPLAY_NAME     = Tunnelless
+
+// Feeds NSHumanReadableCopyright. Set in both manifests' plist blocks rather
+// than through an INFOPLIST_KEY_ build setting: that form reaches the bundle
+// only under GENERATE_INFOPLIST_FILE = YES, which app targets carrying their
+// own Info.plist do not set (observed: the setting resolved, the built iOS
+// plist had no key).
+COPYRIGHT        = Copyright © 2026 Indiagram LLC. All rights reserved.
+
+// The Apple Team ID (DEVELOPMENT_TEAM) lives in app/Local.xcconfig, which is
+// gitignored and is never tracked. On a fresh clone the include below is
+// silent and DEVELOPMENT_TEAM is undefined — not empty, undefined: no line
+// for it appears in -showBuildSettings at all.
+#include? "Local.xcconfig"

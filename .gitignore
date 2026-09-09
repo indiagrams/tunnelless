@@ -15,8 +15,8 @@ app/macOS/Generated-Info.plist
 
 # XcodeGen-generated project (regenerated from project.yml)
 # Tuist-generated project + workspace + cache (regenerated from app/Project.swift)
-app/Tunnelless.xcodeproj
-app/Tunnelless.xcworkspace
+app/App.xcodeproj
+app/App.xcworkspace
 app/Derived/
 .tuist/
 
@@ -95,3 +95,6 @@ vendor/libtailscale/swift/build/
 # tailnet, published. Keep them local; they are supplied per-machine.
 fastlane/metadata/review_information/demo_user.txt
 fastlane/metadata/review_information/demo_password.txt
+
+# The Apple Team ID lives here and must never be committed.
+app/Local.xcconfig

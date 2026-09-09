@@ -8,7 +8,7 @@
 
 import XCTest
 
-final class TunnellessMacOSTests: XCTestCase {
+final class AppMacOSTests: XCTestCase {
     func testSmoke() {
         // Sanity: the unit-test target compiles, links, and the test bundle
         // launches under xcodebuild test. Replace with real assertions as

@@ -1,4 +1,4 @@
-// app/Project.swift — Tuist 4 manifest for the Tunnelless template stub.
+// app/Project.swift — Tuist 4 manifest for the App template stub.
 //
 // 1:1 equivalent of app/project.yml. Both ship on `main`; bin/rename.sh's
 // `--generator=tuist|xcodegen` flag (see #38) selects which one a fresh
@@ -7,7 +7,7 @@
 //
 // When editing this file, also update app/project.yml (and vice versa).
 // The CI matrix is the source of truth — both must produce a
-// build-green Tunnelless.xcodeproj.
+// build-green App.xcodeproj.
 
 import ProjectDescription
 
@@ -19,9 +19,7 @@ let baseSettings: SettingsDictionary = [
     "ENABLE_USER_SCRIPT_SANDBOXING": "YES",
     "MARKETING_VERSION": "0.1.1",
     "CURRENT_PROJECT_VERSION": "1",
-    // DEVELOPMENT_TEAM is auto-substituted by bin/rename.sh --team-id
-    // (auto-passed by bin/bootstrap-fork.rb from .bootstrap.env FASTLANE_TEAM_ID).
-    "DEVELOPMENT_TEAM": "TEAM_ID_PLACEHOLDER",
+    // DEVELOPMENT_TEAM is deliberately absent here: the Apple Team ID resolves from gitignored app/Local.xcconfig.
     "CODE_SIGN_STYLE": "Automatic",
     "SWIFT_TREAT_WARNINGS_AS_ERRORS": "NO",
     "GCC_TREAT_WARNINGS_AS_ERRORS": "NO",
@@ -38,7 +36,8 @@ private let localNetworkUsageDescription =
     "instead of relaying through Tailscale's servers."
 
 let iosInfoPlist: [String: Plist.Value] = [
-    "CFBundleDisplayName": "Tunnelless",
+    "CFBundleDisplayName": "$(DISPLAY_NAME)",
+    "NSHumanReadableCopyright": "$(COPYRIGHT)",
     "CFBundleShortVersionString": "$(MARKETING_VERSION)",
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "UILaunchScreen": .dictionary([:]),
@@ -66,10 +65,11 @@ let iosInfoPlist: [String: Plist.Value] = [
 ]
 
 let iosTarget = Target.target(
-    name: "Tunnelless-iOS",
+    name: "App-iOS",
     destinations: [.iPhone, .iPad],
     product: .app,
-    bundleId: "com.indiagram.tunnelless",
+    productName: "$(APP_PRODUCT_NAME)",
+    bundleId: "$(BUNDLE_ID)",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .extendingDefault(with: iosInfoPlist),
     sources: ["Shared/**", "iOS/**"],
@@ -78,7 +78,7 @@ let iosTarget = Target.target(
         "Shared/PrivacyInfo.xcprivacy",
         "Shared/Localizable.xcstrings",
     ],
-    entitlements: .file(path: "iOS/Tunnelless.entitlements"),
+    entitlements: .file(path: "iOS/App.entitlements"),
     dependencies: [
         // Built by tailscale/build-tailscalekit.sh — NOT committed to git.
         // Mirror of the `dependencies:` block in app/project.yml; Tuist
@@ -87,27 +87,26 @@ let iosTarget = Target.target(
         .xcframework(path: "../vendor/TailscaleKit.xcframework"),
     ],
     settings: .settings(base: [
-        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        "PRODUCT_BUNDLE_IDENTIFIER": "$(BUNDLE_ID)",
         // Mirrors project.yml: keeps "iOS" out of the shipped CFBundleName.
-        "PRODUCT_NAME": "Tunnelless",
+        "PRODUCT_NAME": "$(APP_PRODUCT_NAME)",
         // Module name is internal; pinned so tests need not change.
         "PRODUCT_MODULE_NAME": "Tunnelless_iOS",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_KEY_LSApplicationCategoryType": "public.app-category.utilities",
-        "INFOPLIST_KEY_NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
     ])
 )
 
 // MARK: - macOS app
 
 let macInfoPlist: [String: Plist.Value] = [
-    "CFBundleDisplayName": "Tunnelless",
+    "CFBundleDisplayName": "$(DISPLAY_NAME)",
     "CFBundleShortVersionString": "$(MARKETING_VERSION)",
     "CFBundleVersion": "$(CURRENT_PROJECT_VERSION)",
     "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
     "LSApplicationCategoryType": "public.app-category.utilities",
-    "NSHumanReadableCopyright": "Copyright © 2026 Indiagram LLC. All rights reserved.",
+    "NSHumanReadableCopyright": "$(COPYRIGHT)",
     "NSPrincipalClass": "NSApplication",
     // CFBundleIconName intentionally NOT set — its presence makes Sonoma+
     // prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -139,10 +138,11 @@ let macIconScript: TargetScript = .post(
 )
 
 let macTarget = Target.target(
-    name: "Tunnelless-macOS",
+    name: "App-macOS",
     destinations: [.mac],
     product: .app,
-    bundleId: "com.indiagram.tunnelless",
+    productName: "$(APP_PRODUCT_NAME)",
+    bundleId: "$(BUNDLE_ID)",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .extendingDefault(with: macInfoPlist),
     sources: [
@@ -157,17 +157,17 @@ let macTarget = Target.target(
         "Shared/PrivacyInfo.xcprivacy",
         "Shared/Localizable.xcstrings",
     ],
-    entitlements: .file(path: "macOS/Tunnelless.entitlements"),
+    entitlements: .file(path: "macOS/App.entitlements"),
     scripts: [macIconScript],
     dependencies: [
         // See the iOS target above. Same xcframework, macos-arm64 slice.
         .xcframework(path: "../vendor/TailscaleKit.xcframework"),
     ],
     settings: .settings(base: [
-        "PRODUCT_BUNDLE_IDENTIFIER": "com.indiagram.tunnelless",
+        "PRODUCT_BUNDLE_IDENTIFIER": "$(BUNDLE_ID)",
         // Mirrors project.yml: PRODUCT_NAME defaults to the target name, which
-        // shipped Tunnelless-macOS.app and drew a Guideline 5.2.5 rejection.
-        "PRODUCT_NAME": "Tunnelless",
+        // shipped App-macOS.app and drew a Guideline 5.2.5 rejection.
+        "PRODUCT_NAME": "$(APP_PRODUCT_NAME)",
         "PRODUCT_MODULE_NAME": "Tunnelless_macOS",
         // Suppress actool's auto-injection of CFBundleIconName=AppIcon.
         // Empty value = actool emits Assets.car as before but does not set
@@ -179,16 +179,16 @@ let macTarget = Target.target(
 // MARK: - UI test targets
 
 let iosUITestTarget = Target.target(
-    name: "TunnellessUITests",
+    name: "AppUITests",
     destinations: [.iPhone, .iPad],
     product: .uiTests,
-    bundleId: "com.indiagram.tunnelless.uitests",
+    bundleId: "$(BUNDLE_ID).uitests",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .default,
     sources: ["UITests/**", "Shared/AccessibilityIdentifiers.swift"],
-    dependencies: [.target(name: "Tunnelless-iOS")],
+    dependencies: [.target(name: "App-iOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "Tunnelless-iOS",
+        "TEST_TARGET_NAME": "App-iOS",
         // SnapshotHelper.swift is fastlane-shipped and predates Swift 6's
         // strict-by-default concurrency model. Pin this target to Swift 5
         // mode so the file compiles unmodified — base SWIFT_VERSION is 6.0.
@@ -198,16 +198,16 @@ let iosUITestTarget = Target.target(
 )
 
 let macUITestTarget = Target.target(
-    name: "TunnellessMacOSUITests",
+    name: "AppMacOSUITests",
     destinations: [.mac],
     product: .uiTests,
-    bundleId: "com.indiagram.tunnelless.macuitests",
+    bundleId: "$(BUNDLE_ID).macuitests",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .default,
     sources: ["MacOSUITests/**", "Shared/AccessibilityIdentifiers.swift"],
-    dependencies: [.target(name: "Tunnelless-macOS")],
+    dependencies: [.target(name: "App-macOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "Tunnelless-macOS",
+        "TEST_TARGET_NAME": "App-macOS",
         // AppStoreScreenshotTests overrides XCTestCase.setUpWithError /
         // tearDownWithError in a @MainActor class — Swift 6 errors on
         // main-actor-isolated mutation in nonisolated overrides. Pin this
@@ -220,79 +220,86 @@ let macUITestTarget = Target.target(
 // MARK: - Unit test targets (sanity tests; forks should add real tests here)
 
 let iosUnitTestTarget = Target.target(
-    name: "TunnellessTests",
+    name: "AppTests",
     destinations: [.iPhone, .iPad],
     product: .unitTests,
-    bundleId: "com.indiagram.tunnelless.tests",
+    bundleId: "$(BUNDLE_ID).tests",
     deploymentTargets: .iOS("17.0"),
     infoPlist: .default,
     sources: ["Tests/**"],
-    dependencies: [.target(name: "Tunnelless-iOS")],
+    dependencies: [.target(name: "App-iOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "Tunnelless-iOS",
+        "TEST_TARGET_NAME": "App-iOS",
         // WHY explicit: Tuist derives TEST_HOST's executable from the sanitised
         // TARGET name ("Tunnelless_iOS") while the bundle follows PRODUCT_NAME
-        // ("Tunnelless.app"), so the default path names an executable that does
+        // ("App.app"), so the default path names an executable that does
         // not exist and the build fails with "Could not find test host".
-        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Tunnelless",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/$(APP_PRODUCT_NAME).app/$(APP_PRODUCT_NAME)",
     ])
 )
 
 let macUnitTestTarget = Target.target(
-    name: "TunnellessMacOSTests",
+    name: "AppMacOSTests",
     destinations: [.mac],
     product: .unitTests,
-    bundleId: "com.indiagram.tunnelless.mactests",
+    bundleId: "$(BUNDLE_ID).mactests",
     deploymentTargets: .macOS("14.0"),
     infoPlist: .default,
     sources: ["MacOSTests/**"],
-    dependencies: [.target(name: "Tunnelless-macOS")],
+    dependencies: [.target(name: "App-macOS")],
     settings: .settings(base: [
-        "TEST_TARGET_NAME": "Tunnelless-macOS",
+        "TEST_TARGET_NAME": "App-macOS",
         // See the iOS unit-test target. macOS nests the executable in Contents/MacOS.
-        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/Tunnelless.app/Contents/MacOS/Tunnelless",
+        "TEST_HOST": "$(BUILT_PRODUCTS_DIR)/$(APP_PRODUCT_NAME).app/Contents/MacOS/$(APP_PRODUCT_NAME)",
     ])
 )
 
 // MARK: - Schemes
 
 let iosScheme: Scheme = .scheme(
-    name: "Tunnelless-iOS",
+    name: "App-iOS",
     shared: true,
     // NB: only the main app target — UI tests live in testAction only.
-    // Including TunnellessUITests here would compile it during plain
+    // Including AppUITests here would compile it during plain
     // `xcodebuild build` and trip strict-concurrency errors that the
     // per-target SWIFT_STRICT_CONCURRENCY=minimal override can't suppress.
-    buildAction: .buildAction(targets: ["Tunnelless-iOS"]),
+    buildAction: .buildAction(targets: ["App-iOS"]),
     testAction: .targets(
-        ["TunnellessUITests", "TunnellessTests"],
+        ["AppUITests", "AppTests"],
         configuration: .debug
     ),
-    runAction: .runAction(configuration: .debug, executable: "Tunnelless-iOS"),
+    runAction: .runAction(configuration: .debug, executable: "App-iOS"),
     archiveAction: .archiveAction(configuration: .release)
 )
 
 let macScheme: Scheme = .scheme(
-    name: "Tunnelless-macOS",
+    name: "App-macOS",
     shared: true,
-    buildAction: .buildAction(targets: ["Tunnelless-macOS"]),
+    buildAction: .buildAction(targets: ["App-macOS"]),
     testAction: .targets(
-        ["TunnellessMacOSUITests", "TunnellessMacOSTests"],
+        ["AppMacOSUITests", "AppMacOSTests"],
         configuration: .debug
     ),
-    runAction: .runAction(configuration: .debug, executable: "Tunnelless-macOS"),
+    runAction: .runAction(configuration: .debug, executable: "App-macOS"),
     archiveAction: .archiveAction(configuration: .release)
 )
 
 // MARK: - Project
 
 let project = Project(
-    name: "Tunnelless",
+    name: "App",
     options: .options(
         defaultKnownRegions: ["en"],
         developmentRegion: "en"
     ),
-    settings: .settings(base: baseSettings, defaultSettings: .recommended),
+    settings: .settings(
+        base: baseSettings,
+        configurations: [
+            .debug(name: "Debug", xcconfig: "Identity.xcconfig"),
+            .release(name: "Release", xcconfig: "Identity.xcconfig"),
+        ],
+        defaultSettings: .recommended
+    ),
     targets: [iosTarget, macTarget, iosUITestTarget, macUITestTarget, iosUnitTestTarget, macUnitTestTarget],
     schemes: [iosScheme, macScheme]
 )

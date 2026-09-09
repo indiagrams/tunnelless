@@ -1,8 +1,8 @@
-# XcodeGen configuration for Tunnelless.
+# XcodeGen configuration for App.
 # Generate the .xcodeproj with: xcodegen generate
 # (https://github.com/yonaskolb/XcodeGen)
 
-name: Tunnelless
+name: App
 
 options:
   bundleIdPrefix: com.example
@@ -33,6 +33,13 @@ options:
   xcodeVersion: "26.0"
   defaultConfig: Release
 
+# Identity.xcconfig is the base layer of every configuration. It ends in
+# `#include? "Local.xcconfig"`, the gitignored per-clone file that carries
+# DEVELOPMENT_TEAM.
+configFiles:
+  Debug: Identity.xcconfig
+  Release: Identity.xcconfig
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -40,14 +47,14 @@ settings:
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     MARKETING_VERSION: "0.1.1"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: "TEAM_ID_PLACEHOLDER"   # auto-substituted by bin/rename.sh --team-id (auto-passed by bin/bootstrap-fork.rb from .bootstrap.env FASTLANE_TEAM_ID)
+    # DEVELOPMENT_TEAM is deliberately absent here: the Apple Team ID resolves from gitignored app/Local.xcconfig.
     CODE_SIGN_STYLE: Automatic
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
     GCC_TREAT_WARNINGS_AS_ERRORS: NO
 
 # ─── iOS app ──────────────────────────────────────────────────────────
 targets:
-  Tunnelless-iOS:
+  App-iOS:
     type: application
     platform: iOS
     sources:
@@ -56,7 +63,8 @@ targets:
     info:
       path: iOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: Tunnelless
+        CFBundleDisplayName: $(DISPLAY_NAME)
+        NSHumanReadableCopyright: $(COPYRIGHT)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -88,21 +96,20 @@ targets:
           NSAllowsLocalNetworking: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID)
         # Same reason as the macOS target: PRODUCT_NAME defaults to the TARGET
-        # name, which would ship CFBundleName "Tunnelless-iOS". App Review cited
+        # name, which would ship CFBundleName "App-iOS". App Review cited
         # Guideline 5.2.5 for "macOS" in the displayed name; "iOS" is an Apple
         # term on the same footing, so it is fixed before being flagged.
-        PRODUCT_NAME: Tunnelless
+        PRODUCT_NAME: $(APP_PRODUCT_NAME)
         # PRODUCT_NAME also drives the Swift module name. That is internal and
         # invisible to Apple, so it is pinned to the old value rather than
         # renaming the symbol every test file imports.
         PRODUCT_MODULE_NAME: Tunnelless_iOS
         TARGETED_DEVICE_FAMILY: "1,2"           # iPhone + iPad
         SUPPORTS_MACCATALYST: NO
-        CODE_SIGN_ENTITLEMENTS: iOS/Tunnelless.entitlements
+        CODE_SIGN_ENTITLEMENTS: iOS/App.entitlements
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026 Indiagram LLC. All rights reserved."
     dependencies:
       # Built by tailscale/build-tailscalekit.sh — NOT committed to git.
       # Run `bash tailscale/build-tailscalekit.sh` before `xcodegen generate`.
@@ -111,7 +118,7 @@ targets:
         codeSign: true
 
 # ─── macOS app ────────────────────────────────────────────────────────
-  Tunnelless-macOS:
+  App-macOS:
     type: application
     platform: macOS
     sources:
@@ -125,12 +132,12 @@ targets:
     info:
       path: macOS/Generated-Info.plist
       properties:
-        CFBundleDisplayName: Tunnelless
+        CFBundleDisplayName: $(DISPLAY_NAME)
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "Copyright © 2026 Indiagram LLC. All rights reserved."
+        NSHumanReadableCopyright: $(COPYRIGHT)
         NSPrincipalClass: NSApplication
         # CFBundleIconName intentionally NOT set — its presence makes Sonoma+
         # prefer Assets.car AppIcon (which has actool's broken 4-size set).
@@ -147,19 +154,19 @@ targets:
           NSAllowsLocalNetworking: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID)
         # WHY set explicitly: PRODUCT_NAME defaults to the TARGET name, so the
-        # shipped bundle was Tunnelless-macOS.app with CFBundleName
-        # "Tunnelless-macOS". App Review rejected that under Guideline 5.2.5
+        # shipped bundle was App-macOS.app with CFBundleName
+        # "App-macOS". App Review rejected that under Guideline 5.2.5
         # (Legal - Intellectual Property): "Terms for macOS in the app name that
         # displays on the device". The target keeps its name so schemes and CI
         # are unaffected; only the product users see changes.
         # The bundle identifier is deliberately untouched — changing it would
         # orphan existing installs.
-        PRODUCT_NAME: Tunnelless
+        PRODUCT_NAME: $(APP_PRODUCT_NAME)
         # See the iOS target: keep the internal module name stable.
         PRODUCT_MODULE_NAME: Tunnelless_macOS
-        CODE_SIGN_ENTITLEMENTS: macOS/Tunnelless.entitlements
+        CODE_SIGN_ENTITLEMENTS: macOS/App.entitlements
         # Apple Silicon only. ARCHS_STANDARD would be "arm64 x86_64", but
         # TailscaleKit's macOS slice is arm64-only (upstream's swift/Makefile
         # pins -destination 'platform=macOS,arch=arm64'), so a universal build
@@ -191,7 +198,7 @@ targets:
           echo "Overwrote $SCRIPT_OUTPUT_FILE_0 with hand-rolled 10-size .icns"
 
 # ─── UITest target (drives App Store screenshot capture) ────────────────────
-  TunnellessUITests:
+  AppUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
@@ -205,8 +212,8 @@ targets:
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.uitests
-        TEST_TARGET_NAME: Tunnelless-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID).uitests
+        TEST_TARGET_NAME: App-iOS
         GENERATE_INFOPLIST_FILE: YES
         # SnapshotHelper.swift is fastlane-shipped and predates Swift 6's
         # strict-by-default concurrency model. Pin this target to Swift 5
@@ -214,102 +221,104 @@ targets:
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: Tunnelless-iOS
+      - target: App-iOS
 
 
 # ─── Unit-test target (sanity tests; forks should add real tests here) ─────
-  TunnellessTests:
+  AppTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.tests
-        TEST_TARGET_NAME: Tunnelless-iOS
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID).tests
+        TEST_TARGET_NAME: App-iOS
         # WHY explicit: xcodegen derives TEST_HOST from the TARGET name,
-        # but PRODUCT_NAME is overridden to "Tunnelless" (Guideline 5.2.5),
+        # but PRODUCT_NAME is overridden to "App" (Guideline 5.2.5),
         # so the derived path pointed at a bundle that no longer exists and
         # CI failed with "Could not find test host".
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tunnelless.app/Tunnelless
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(APP_PRODUCT_NAME).app/$(APP_PRODUCT_NAME)
+        BUNDLE_LOADER: $(TEST_HOST)
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: Tunnelless-iOS
+      - target: App-iOS
 # ─── macOS UITest target (drives App Store screenshot capture) ─────────────
-  TunnellessMacOSUITests:
+  AppMacOSUITests:
     type: bundle.ui-testing
     platform: macOS
     sources:
       - path: MacOSUITests
-      # See TunnellessUITests above — same rationale for the shared
+      # See AppUITests above — same rationale for the shared
       # selector enum. The macOS UI test doesn't query it today, but
       # making the symbol available so future macOS test screens can.
       - path: Shared/AccessibilityIdentifiers.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.macuitests
-        TEST_TARGET_NAME: Tunnelless-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID).macuitests
+        TEST_TARGET_NAME: App-macOS
         GENERATE_INFOPLIST_FILE: YES
         # AppStoreScreenshotTests overrides XCTestCase.setUpWithError /
         # tearDownWithError in a @MainActor class — Swift 6 errors on
         # main-actor-isolated mutation in nonisolated overrides. Pin this
-        # target to Swift 5 mode (parallel to TunnellessUITests).
+        # target to Swift 5 mode (parallel to AppUITests).
         SWIFT_VERSION: "5.9"
         SWIFT_STRICT_CONCURRENCY: minimal
     dependencies:
-      - target: Tunnelless-macOS
+      - target: App-macOS
 
 # ─── macOS unit-test target ─────────────────────────────────────────────
-  TunnellessMacOSTests:
+  AppMacOSTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: MacOSTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.indiagram.tunnelless.mactests
-        TEST_TARGET_NAME: Tunnelless-macOS
+        PRODUCT_BUNDLE_IDENTIFIER: $(BUNDLE_ID).mactests
+        TEST_TARGET_NAME: App-macOS
         # WHY explicit: xcodegen derives TEST_HOST from the TARGET name,
-        # but PRODUCT_NAME is overridden to "Tunnelless" (Guideline 5.2.5),
+        # but PRODUCT_NAME is overridden to "App" (Guideline 5.2.5),
         # so the derived path pointed at a bundle that no longer exists and
         # CI failed with "Could not find test host".
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tunnelless.app/Contents/MacOS/Tunnelless
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(APP_PRODUCT_NAME).app/Contents/MacOS/$(APP_PRODUCT_NAME)
+        BUNDLE_LOADER: $(TEST_HOST)
         GENERATE_INFOPLIST_FILE: YES
     dependencies:
-      - target: Tunnelless-macOS
+      - target: App-macOS
 
 # ─── Schemes ──────────────────────────────────────────────────────────
 schemes:
-  Tunnelless-iOS:
+  App-iOS:
     build:
       targets:
-        Tunnelless-iOS: all
-        TunnellessUITests: [test]
-        TunnellessTests: [test]
+        App-iOS: all
+        AppUITests: [test]
+        AppTests: [test]
     run:
       config: Debug
-      executable: Tunnelless-iOS
+      executable: App-iOS
     test:
       config: Debug
       targets:
-        - TunnellessUITests
-        - TunnellessTests
+        - AppUITests
+        - AppTests
     archive:
       config: Release
 
-  Tunnelless-macOS:
+  App-macOS:
     build:
       targets:
-        Tunnelless-macOS: all
-        TunnellessMacOSUITests: [test]
-        TunnellessMacOSTests: [test]
+        App-macOS: all
+        AppMacOSUITests: [test]
+        AppMacOSTests: [test]
     run:
       config: Debug
-      executable: Tunnelless-macOS
+      executable: App-macOS
     test:
       config: Debug
       targets:
-        - TunnellessMacOSUITests
-        - TunnellessMacOSTests
+        - AppMacOSUITests
+        - AppMacOSTests
     archive:
       config: Release

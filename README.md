@@ -206,11 +206,11 @@ than committing it:
 
 ```bash
 xcodebuild build \
-  -project app/Tunnelless.xcodeproj -scheme Tunnelless-iOS -configuration Debug \
+  -project app/App.xcodeproj -scheme App-iOS -configuration Debug \
   -destination 'id=<YOUR-DEVICE-UDID>' -allowProvisioningUpdates \
   DEVELOPMENT_TEAM=<YOUR-TEAM-ID>
 
-xcrun devicectl device install app --device <UDID> <path>/Tunnelless-iOS.app
+xcrun devicectl device install app --device <UDID> <path>/App-iOS.app
 xcrun devicectl device process launch --device <UDID> \
   --terminate-existing --console com.indiagram.tunnelless -- -autoconnect
 ```

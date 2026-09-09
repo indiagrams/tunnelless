@@ -44,7 +44,9 @@ jobs:
       HOMEBREW_NO_INSTALL_CLEANUP: "1"
       HOMEBREW_NO_ANALYTICS: "1"
       NEW_VERSION: ${{ inputs.version }}
-      APP_NAME: ${{ vars.APP_NAME || 'TailnetDemo' }}
+      # Project path and schemes are constants since #289: identity lives in
+      # app/Identity.xcconfig and nothing here has to resolve it. vars.APP_NAME
+      # is deliberately NOT read — it names the App Store product, not the project.
     steps:
       - name: validate input
         run: |
@@ -144,10 +146,10 @@ jobs:
           set -o pipefail
           brew install xcodegen
           cd app && xcodegen generate && cd ..
-          xcodebuild build -project "app/${APP_NAME}.xcodeproj" -scheme "${APP_NAME}-iOS" \
+          xcodebuild build -project app/App.xcodeproj -scheme App-iOS \
             -configuration Debug -sdk iphoneos -destination 'generic/platform=iOS' \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tail -15
-          xcodebuild build -project "app/${APP_NAME}.xcodeproj" -scheme "${APP_NAME}-macOS" \
+          xcodebuild build -project app/App.xcodeproj -scheme App-macOS \
             -configuration Debug -destination 'platform=macOS' \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO 2>&1 | tail -15
 

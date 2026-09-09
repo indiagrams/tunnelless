@@ -247,7 +247,7 @@ mutate_makefile() {
     fail "Makefile missing — unexpected repo state"
   fi
   sed -i '' 's|cd app && tuist generate --no-open|cd app \&\& xcodegen generate|g' Makefile
-  sed -i '' 's|Regenerate Tunnelless.xcodeproj from app/Project.swift|Regenerate Tunnelless.xcodeproj from app/project.yml|g' Makefile
+  sed -i '' 's|Regenerate App.xcodeproj from app/Project.swift|Regenerate App.xcodeproj from app/project.yml|g' Makefile
   ok "Makefile: tuist generate --no-open → xcodegen generate"
 }
 
